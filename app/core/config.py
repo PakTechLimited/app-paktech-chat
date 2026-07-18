@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     redis_db: int = 0
 
     # CORS
-    allowed_origins: str = "http://localhost:8000"
+    allowed_origins: str = "http://localhost:8000,http://localhost:3000"
 
     @property
     def database_url(self) -> str:
