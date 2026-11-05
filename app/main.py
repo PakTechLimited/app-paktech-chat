@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
 )
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.db.seed import seed_default_rooms
 from app.db.session import Base, engine
 from app.services.redis_service import close_redis
 
@@ -56,6 +57,7 @@ async def on_startup() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables initialised")
+    await seed_default_rooms()
 
 
 @app.on_event("shutdown")

@@ -14,6 +14,7 @@ def client():
     with (
         patch("app.db.session.engine") as mock_engine,
         patch("app.services.redis_service.get_redis") as mock_redis,
+        patch("app.main.seed_default_rooms", new=AsyncMock()),
     ):
 
         mock_conn = AsyncMock()

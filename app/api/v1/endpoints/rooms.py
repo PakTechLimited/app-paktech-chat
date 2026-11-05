@@ -4,8 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.dependencies import get_current_user
+from app.core.rate_limit import enforce
 from app.db.session import get_db
 from app.models.room import Room
+from app.models.user import User
 from app.schemas.room import RoomCreate, RoomOut
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
@@ -13,13 +16,21 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=list[RoomOut])
-async def list_rooms(db: AsyncSession = Depends(get_db)) -> list[Room]:
+async def list_rooms(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> list[Room]:
     result = await db.execute(select(Room).order_by(Room.name))
     return list(result.scalars().all())
 
 
 @router.post("/", response_model=RoomOut, status_code=status.HTTP_201_CREATED)
-async def create_room(payload: RoomCreate, db: AsyncSession = Depends(get_db)) -> Room:
+async def create_room(
+    payload: RoomCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Room:
+    await enforce(f"room-create:{user.id}", limit=5, window_seconds=3600)
     existing = await db.execute(select(Room).where(Room.name == payload.name))
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -35,7 +46,11 @@ async def create_room(payload: RoomCreate, db: AsyncSession = Depends(get_db)) -
 
 
 @router.get("/{room_id}", response_model=RoomOut)
-async def get_room(room_id: int, db: AsyncSession = Depends(get_db)) -> Room:
+async def get_room(
+    room_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> Room:
     result = await db.execute(select(Room).where(Room.id == room_id))
     room = result.scalar_one_or_none()
     if not room:

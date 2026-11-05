@@ -14,6 +14,7 @@ class MessageOut(BaseModel):
     room_id: int
     author_id: int
     author_username: str | None = None
+    author_avatar_color: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

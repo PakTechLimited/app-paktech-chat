@@ -13,6 +13,9 @@ class ConnectionManager:
     """
     Manages active WebSocket connections per room.
 
+    Connections are keyed by the socket itself (not the username), so a user can
+    have several tabs open and one tab closing never breaks another.
+
     Fan-out strategy:
     - Local delivery: push directly to WebSocket connections on THIS pod.
     - Cross-pod delivery: subscribe to Redis Pub/Sub channel per room.
@@ -21,37 +24,51 @@ class ConnectionManager:
     """
 
     def __init__(self) -> None:
-        # room_id -> {username -> WebSocket}
-        self._connections: dict[int, dict[str, WebSocket]] = {}
+        # room_id -> {websocket -> username}
+        self._connections: dict[int, dict[WebSocket, str]] = {}
         self._pubsub_tasks: dict[int, asyncio.Task] = {}
 
-    async def connect(self, websocket: WebSocket, room_id: int, username: str) -> None:
-        await websocket.accept()
+    async def connect(self, websocket: WebSocket, room_id: int, username: str) -> bool:
+        """Register an ACCEPTED, authenticated socket.
+
+        Returns True if this is the user's first connection in the room
+        (so callers announce "joined" once, not once per tab).
+        """
         if room_id not in self._connections:
             self._connections[room_id] = {}
             await self._start_pubsub_listener(room_id)
-        self._connections[room_id][username] = websocket
+        first = username not in self._connections[room_id].values()
+        self._connections[room_id][websocket] = username
         logger.info("WS connected: user=%s room=%d", username, room_id)
+        return first
 
-    async def disconnect(self, room_id: int, username: str) -> None:
-        if room_id in self._connections:
-            self._connections[room_id].pop(username, None)
-            if not self._connections[room_id]:
-                del self._connections[room_id]
-                await self._stop_pubsub_listener(room_id)
+    async def disconnect(self, room_id: int, websocket: WebSocket) -> tuple[str, bool]:
+        """Remove a socket. Returns (username, was_last_connection_for_user)."""
+        room = self._connections.get(room_id, {})
+        username = room.pop(websocket, "")
+        last = bool(username) and username not in room.values()
+        if room_id in self._connections and not self._connections[room_id]:
+            del self._connections[room_id]
+            await self._stop_pubsub_listener(room_id)
         logger.info("WS disconnected: user=%s room=%d", username, room_id)
+        return username, last
+
+    def online_users(self, room_id: int) -> list[str]:
+        return sorted(set(self._connections.get(room_id, {}).values()))
 
     async def broadcast_local(self, room_id: int, event: dict) -> None:
-        if room_id not in self._connections:
+        room = self._connections.get(room_id)
+        if not room:
             return
+        payload = json.dumps(event)
         dead = []
-        for username, ws in self._connections[room_id].items():
+        for ws in list(room):
             try:
-                await ws.send_text(json.dumps(event))
-            except Exception:
-                dead.append(username)
-        for u in dead:
-            await self.disconnect(room_id, u)
+                await ws.send_text(payload)
+            except Exception:  # noqa: BLE001 - a broken socket must not stop fan-out
+                dead.append(ws)
+        for ws in dead:
+            await self.disconnect(room_id, ws)
 
     def active_connections_count(self) -> int:
         return sum(len(v) for v in self._connections.values())

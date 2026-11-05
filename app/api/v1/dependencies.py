@@ -40,6 +40,16 @@ async def get_current_user(
     return user
 
 
+async def user_from_access_token(token: str, db: AsyncSession) -> User | None:
+    """Resolve an access token to an active user (used by the WebSocket handshake)."""
+    claims = decode_token(token)
+    if not claims or claims.get("type") != "access":
+        return None
+    result = await db.execute(select(User).where(User.id == int(claims["sub"])))
+    user = result.scalar_one_or_none()
+    return user if user and user.is_active else None
+
+
 async def get_optional_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: AsyncSession = Depends(get_db),

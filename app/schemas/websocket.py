@@ -9,6 +9,7 @@ class WSEventType(str, Enum):
     USER_LEFT = "user_left"
     TYPING = "typing"
     TYPING_STOP = "typing_stop"
+    READY = "ready"
     ERROR = "error"
 
 
