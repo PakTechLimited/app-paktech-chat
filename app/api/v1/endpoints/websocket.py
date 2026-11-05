@@ -55,6 +55,14 @@ async def _authenticate(websocket: WebSocket) -> User | None:
         return await user_from_access_token(token, db)
 
 
+async def _close(websocket: WebSocket, code: int) -> None:
+    """Close, ignoring sockets the client already dropped."""
+    try:
+        await websocket.close(code=code)
+    except RuntimeError:
+        pass
+
+
 async def _send_error(websocket: WebSocket, content: str) -> None:
     await websocket.send_text(
         json.dumps({"type": WSEventType.ERROR, "content": content})
@@ -75,13 +83,13 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int) -> None:
     """
     origin = websocket.headers.get("origin")
     if origin and origin not in settings.cors_origins:
-        await websocket.close(code=CLOSE_FORBIDDEN_ORIGIN)
+        await _close(websocket, CLOSE_FORBIDDEN_ORIGIN)
         return
 
     await websocket.accept()
     user = await _authenticate(websocket)
     if user is None:
-        await websocket.close(code=CLOSE_UNAUTHORIZED)
+        await _close(websocket, CLOSE_UNAUTHORIZED)
         return
 
     async with db_session.AsyncSessionLocal() as db:
@@ -89,7 +97,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int) -> None:
             await db.execute(select(Room).where(Room.id == room_id))
         ).scalar_one_or_none()
     if room is None:
-        await websocket.close(code=CLOSE_NO_SUCH_ROOM)
+        await _close(websocket, CLOSE_NO_SUCH_ROOM)
         return
 
     first_tab = await manager.connect(websocket, room_id, user.username)

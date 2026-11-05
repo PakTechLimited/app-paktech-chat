@@ -2,7 +2,6 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.endpoints import (
     admin,
@@ -47,8 +46,6 @@ app.include_router(posts.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(websocket.router)
-
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 
 @app.on_event("startup")

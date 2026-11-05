@@ -35,8 +35,7 @@ app/
   schemas/            Pydantic I/O schemas + WS event types
   services/           ConnectionManager · RedisService
   main.py             FastAPI app factory + lifespan hooks
-static/
-  index.html          Single-page HTML/JS chat client
+frontend/               Next.js client (chat, wall, AI)
 tests/
   test_health.py      Health endpoint smoke tests
 Dockerfile

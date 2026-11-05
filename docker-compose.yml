@@ -21,7 +21,6 @@ services:
         condition: service_healthy
     volumes:
       - ./app:/app/app
-      - ./static:/app/static
     restart: unless-stopped
 
   postgres:
