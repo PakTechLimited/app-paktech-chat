@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import type { AdminUser, PlatformStats } from "@/lib/types";
+import { AppHeader } from "@/components/app-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -73,6 +74,8 @@ export default function AdminPage() {
   }
 
   return (
+    <>
+    <AppHeader />
     <div className="flex-1 overflow-y-auto p-6 md:p-10">
       <div className="max-w-5xl mx-auto">
         <h1 className="text-xl font-semibold text-foreground mb-1">Admin panel</h1>
@@ -143,6 +146,7 @@ export default function AdminPage() {
         )}
       </div>
     </div>
+    </>
   );
 }
 

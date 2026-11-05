@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Auth cookie: set COOKIE_SECURE=true whenever served over HTTPS
     cookie_secure: bool = False
 
+    # Rate limiting on auth endpoints (disable only in tests)
+    rate_limit_enabled: bool = True
+
     # CORS
     allowed_origins: str = "http://localhost:8000,http://localhost:3000"
 

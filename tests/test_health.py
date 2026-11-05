@@ -21,6 +21,7 @@ def client():
         mock_conn.__aexit__ = AsyncMock(return_value=None)
         mock_conn.execute = AsyncMock()
         mock_engine.connect.return_value = mock_conn
+        mock_engine.dispose = AsyncMock()  # awaited by the app's shutdown hook
 
         mock_redis_client = AsyncMock()
         mock_redis_client.ping = AsyncMock(return_value=True)

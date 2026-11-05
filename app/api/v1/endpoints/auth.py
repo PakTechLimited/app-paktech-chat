@@ -1,11 +1,12 @@
 import logging
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import get_current_user
 from app.core.config import settings
+from app.core.rate_limit import client_ip, enforce
 from app.core.security import (
     REFRESH_TOKEN_EXPIRE_DAYS,
     create_access_token,
@@ -65,9 +66,11 @@ def _clear_cookie(response: Response) -> None:
 )
 async def register(
     payload: RegisterRequest,
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
+    await enforce(f"register:{client_ip(request)}", limit=5, window_seconds=3600)
     existing = await db.execute(
         select(User).where(
             (User.email == payload.email) | (User.username == payload.username)
@@ -95,9 +98,14 @@ async def register(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     payload: LoginRequest,
+    request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
+    # Per-IP cap stops one host hammering; per-account cap stops a distributed
+    # attack on a single email.
+    await enforce(f"login-ip:{client_ip(request)}", limit=20, window_seconds=300)
+    await enforce(f"login-acct:{payload.email.lower()}", limit=5, window_seconds=300)
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
     if not user or not verify_password(payload.password, user.hashed_password):
@@ -115,10 +123,12 @@ async def login(
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(
+    request: Request,
     response: Response,
     pt_refresh: str | None = Cookie(default=None),
     db: AsyncSession = Depends(get_db),
 ):
+    await enforce(f"refresh:{client_ip(request)}", limit=60, window_seconds=60)
     invalid = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired refresh token.",
