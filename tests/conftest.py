@@ -61,5 +61,7 @@ def auth_client(monkeypatch):
     app.include_router(messages.router, prefix="/api/v1")
     app.include_router(websocket.router)
     app.dependency_overrides[get_db] = _get_db
-    with TestClient(app, base_url="http://localhost") as c:
+    with TestClient(
+        app, base_url="http://localhost", headers={"X-Requested-With": "pt"}
+    ) as c:
         yield c

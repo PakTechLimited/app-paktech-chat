@@ -24,45 +24,79 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-// --- Silent refresh -------------------------------------------------------
-// On a 401 we exchange the stored refresh token for a new access token once
-// (single-flight, so parallel requests share one refresh call), then retry.
-// If the refresh fails the session is dead: clear storage and tell the
-// AuthProvider via a window event so the UI returns to the login screen.
+// --- Session handling -----------------------------------------------------
+// The access token lives only in this module's memory: nothing in
+// localStorage for an XSS payload to steal. It is restored after a page load
+// by exchanging the httpOnly refresh cookie (see AuthProvider).
+//
+// On a 401 we refresh once (single-flight within the tab, serialised across
+// tabs with the Web Locks API) and retry. Serialising matters: refresh tokens
+// rotate, so two tabs refreshing with the same cookie at the same moment would
+// look like a replay and the server would revoke every session.
 
 export const AUTH_EVENTS = {
   refreshed: "pt:token-refreshed",
   loggedOut: "pt:logged-out",
 } as const;
 
+// Required on every cookie-authenticated endpoint. A custom header forces a
+// CORS preflight, which only our own origin passes (CSRF defence in depth).
+const CSRF_HEADERS = { "X-Requested-With": "pt" } as const;
+
+// Non-secret "a session probably exists" hint for the Next.js proxy, which
+// cannot see the API's httpOnly cookie. UX only: the API enforces real auth.
+const SESSION_HINT = "pt_session";
+
+let accessToken: string | null = null;
 let refreshInFlight: Promise<string | null> | null = null;
 
-function readStore(key: string): string | null {
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
+function setSessionHint(on: boolean) {
+  document.cookie = on
+    ? `${SESSION_HINT}=1; path=/; max-age=${30 * 24 * 3600}; SameSite=Lax`
+    : `${SESSION_HINT}=; path=/; max-age=0; SameSite=Lax`;
+}
+
+/** Remember a freshly issued session (login, register, refresh). */
+function startLocalSession(data: TokenResponse) {
+  accessToken = data.access_token;
+  setSessionHint(true);
   try {
-    return localStorage.getItem(key);
+    // Tokens used to be kept here; drop leftovers from older builds.
+    localStorage.removeItem("pt_token");
+    localStorage.removeItem("pt_user");
+  } catch {
+    /* storage unavailable */
+  }
+  window.dispatchEvent(new CustomEvent(AUTH_EVENTS.refreshed, { detail: data }));
+}
+
+async function refreshOnce(): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: CSRF_HEADERS,
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as TokenResponse;
+    startLocalSession(data);
+    return data.access_token;
   } catch {
     return null;
   }
 }
 
 async function refreshAccessToken(): Promise<string | null> {
-  // The refresh token lives in an httpOnly cookie: JS never sees it, the
-  // browser attaches it automatically (credentials: "include").
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
-      method: "POST",
-      credentials: "include",
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as TokenResponse;
-    localStorage.setItem("pt_token", data.access_token);
-    window.dispatchEvent(
-      new CustomEvent(AUTH_EVENTS.refreshed, { detail: data })
-    );
-    return data.access_token;
-  } catch {
-    return null;
+  // The lock is held across the whole request, so a second tab starts its
+  // refresh only after the first has stored the rotated cookie.
+  if (typeof navigator !== "undefined" && navigator.locks) {
+    return navigator.locks.request("pt-refresh", refreshOnce);
   }
+  return refreshOnce();
 }
 
 /** Exchange the refresh cookie for a new access token (one call at a time). */
@@ -74,11 +108,8 @@ export function refreshSession(): Promise<string | null> {
 }
 
 export function endSession() {
-  try {
-    localStorage.clear();
-  } catch {
-    /* storage unavailable */
-  }
+  accessToken = null;
+  setSessionHint(false);
   window.dispatchEvent(new Event(AUTH_EVENTS.loggedOut));
 }
 
@@ -90,7 +121,7 @@ async function authedFetch(path: string, init: RequestInit = {}): Promise<Respon
       headers: { ...(init.headers || {}), ...authHeaders(token) },
     });
 
-  const res = await send(readStore("pt_token"));
+  const res = await send(accessToken);
   if (res.status !== 401) return res;
 
   const newToken = await refreshSession();
@@ -107,9 +138,14 @@ export const api = {
       fetch(`${API_BASE}/api/v1/auth/login`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CSRF_HEADERS },
         body: JSON.stringify({ email, password }),
-      }).then((res) => handleResponse<TokenResponse>(res)),
+      })
+        .then((res) => handleResponse<TokenResponse>(res))
+        .then((data) => {
+          startLocalSession(data);
+          return data;
+        }),
 
     register: (
       username: string,
@@ -120,14 +156,20 @@ export const api = {
       fetch(`${API_BASE}/api/v1/auth/register`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CSRF_HEADERS },
         body: JSON.stringify({ username, email, password, display_name }),
-      }).then((res) => handleResponse<TokenResponse>(res)),
+      })
+        .then((res) => handleResponse<TokenResponse>(res))
+        .then((data) => {
+          startLocalSession(data);
+          return data;
+        }),
 
     logout: () =>
       fetch(`${API_BASE}/api/v1/auth/logout`, {
         method: "POST",
         credentials: "include",
+        headers: CSRF_HEADERS,
       }),
 
     me: () =>

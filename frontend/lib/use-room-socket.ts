@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { endSession, refreshSession, wsUrl } from "./api";
+import { endSession, getAccessToken, refreshSession, wsUrl } from "./api";
 import type { WSEvent } from "./types";
 
 export type SocketStatus = "connecting" | "online" | "reconnecting" | "closed";
@@ -49,7 +49,7 @@ export function useRoomSocket(roomId: number, onEvent: (event: WSEvent) => void)
 
       ws.onopen = () => {
         ws.send(
-          JSON.stringify({ type: "auth", token: localStorage.getItem("pt_token") })
+          JSON.stringify({ type: "auth", token: getAccessToken() })
         );
       };
 

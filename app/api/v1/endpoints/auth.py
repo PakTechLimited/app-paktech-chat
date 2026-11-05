@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import get_current_user
 from app.core.config import settings
+from app.core.csrf import require_csrf
 from app.core.rate_limit import client_ip, enforce
 from app.core.security import (
     REFRESH_TOKEN_EXPIRE_DAYS,
@@ -62,7 +63,10 @@ def _clear_cookie(response: Response) -> None:
 
 
 @router.post(
-    "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+    "/register",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_csrf)],
 )
 async def register(
     payload: RegisterRequest,
@@ -95,7 +99,9 @@ async def register(
     return await _start_session(response, user)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login", response_model=TokenResponse, dependencies=[Depends(require_csrf)]
+)
 async def login(
     payload: LoginRequest,
     request: Request,
@@ -121,7 +127,9 @@ async def login(
     return await _start_session(response, user)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post(
+    "/refresh", response_model=TokenResponse, dependencies=[Depends(require_csrf)]
+)
 async def refresh(
     request: Request,
     response: Response,
@@ -157,7 +165,11 @@ async def refresh(
     return await _start_session(response, user)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_csrf)],
+)
 async def logout(response: Response, pt_refresh: str | None = Cookie(default=None)):
     claims = decode_token(pt_refresh) if pt_refresh else None
     if claims and claims.get("jti"):
