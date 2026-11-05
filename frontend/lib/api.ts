@@ -7,11 +7,85 @@ function authHeaders(token: string | null): HeadersInit {
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(data.detail || "Request failed");
   }
   return data as T;
+}
+
+// --- Silent refresh -------------------------------------------------------
+// On a 401 we exchange the stored refresh token for a new access token once
+// (single-flight, so parallel requests share one refresh call), then retry.
+// If the refresh fails the session is dead: clear storage and tell the
+// AuthProvider via a window event so the UI returns to the login screen.
+
+export const AUTH_EVENTS = {
+  refreshed: "pt:token-refreshed",
+  loggedOut: "pt:logged-out",
+} as const;
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+function readStore(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = readStore("pt_refresh");
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as TokenResponse;
+    localStorage.setItem("pt_token", data.access_token);
+    localStorage.setItem("pt_refresh", data.refresh_token);
+    window.dispatchEvent(
+      new CustomEvent(AUTH_EVENTS.refreshed, { detail: data })
+    );
+    return data.access_token;
+  } catch {
+    return null;
+  }
+}
+
+function endSession() {
+  try {
+    localStorage.clear();
+  } catch {
+    /* storage unavailable */
+  }
+  window.dispatchEvent(new Event(AUTH_EVENTS.loggedOut));
+}
+
+/** fetch() with the current access token; refreshes once on 401. */
+async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const send = (token: string | null) =>
+    fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: { ...(init.headers || {}), ...authHeaders(token) },
+    });
+
+  const res = await send(readStore("pt_token"));
+  if (res.status !== 401) return res;
+
+  refreshInFlight ??= refreshAccessToken().finally(() => {
+    refreshInFlight = null;
+  });
+  const newToken = await refreshInFlight;
+  if (!newToken) {
+    endSession();
+    return res;
+  }
+  return send(newToken);
 }
 
 export const api = {
@@ -42,10 +116,8 @@ export const api = {
         body: JSON.stringify({ refresh_token }),
       }).then((res) => handleResponse<TokenResponse>(res)),
 
-    me: (token: string) =>
-      fetch(`${API_BASE}/api/v1/auth/me`, {
-        headers: authHeaders(token),
-      }).then((res) => handleResponse<User>(res)),
+    me: () =>
+      authedFetch(`/api/v1/auth/me`).then((res) => handleResponse<User>(res)),
   },
 
   posts: {
@@ -58,23 +130,16 @@ export const api = {
 
     },
 
-
-
-
     create: (token: string, content: string, tag?: string | null) =>
-      fetch(`${API_BASE}/api/v1/posts/`, {
+      authedFetch(`/api/v1/posts/`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders(token),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content, tag }),
       }).then((res) => handleResponse<Post>(res)),
 
     toggleLike: (token: string, postId: number) =>
-      fetch(`${API_BASE}/api/v1/posts/${postId}/like`, {
+      authedFetch(`/api/v1/posts/${postId}/like`, {
         method: "POST",
-        headers: authHeaders(token),
       }).then((res) => handleResponse<{ liked: boolean; likes_count: number }>(res)),
 
     comments: (postId: number) =>
@@ -83,43 +148,33 @@ export const api = {
       ),
 
     addComment: (token: string, postId: number, content: string) =>
-      fetch(`${API_BASE}/api/v1/posts/${postId}/comments`, {
+      authedFetch(`/api/v1/posts/${postId}/comments`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders(token),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),
       }).then((res) => handleResponse<Comment>(res)),
   },
   admin: {
     listUsers: (token: string) =>
-      fetch(`${API_BASE}/api/v1/admin/users`, {
-        headers: authHeaders(token),
-      }).then((res) => handleResponse<AdminUser[]>(res)),
+      authedFetch(`/api/v1/admin/users`).then((res) => handleResponse<AdminUser[]>(res)),
 
     deactivateUser: (token: string, userId: number) =>
-      fetch(`${API_BASE}/api/v1/admin/users/${userId}/deactivate`, {
+      authedFetch(`/api/v1/admin/users/${userId}/deactivate`, {
         method: "PATCH",
-        headers: authHeaders(token),
       }).then((res) => handleResponse<{ id: number; is_active: boolean }>(res)),
 
     activateUser: (token: string, userId: number) =>
-      fetch(`${API_BASE}/api/v1/admin/users/${userId}/activate`, {
+      authedFetch(`/api/v1/admin/users/${userId}/activate`, {
         method: "PATCH",
-        headers: authHeaders(token),
       }).then((res) => handleResponse<{ id: number; is_active: boolean }>(res)),
 
     deletePost: (token: string, postId: number) =>
-      fetch(`${API_BASE}/api/v1/admin/posts/${postId}`, {
+      authedFetch(`/api/v1/admin/posts/${postId}`, {
         method: "DELETE",
-        headers: authHeaders(token),
       }),
 
     stats: (token: string) =>
-      fetch(`${API_BASE}/api/v1/admin/stats`, {
-        headers: authHeaders(token),
-      }).then((res) => handleResponse<PlatformStats>(res)),
+      authedFetch(`/api/v1/admin/stats`).then((res) => handleResponse<PlatformStats>(res)),
   },
 };
 
