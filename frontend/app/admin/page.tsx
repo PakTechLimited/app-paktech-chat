@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
 import type { AdminUser, PlatformStats } from "@/lib/types";
@@ -13,9 +14,14 @@ import { toast } from "sonner";
 
 export default function AdminPage() {
   const { user, token, isLoading } = useAuth();
+  const router = useRouter();
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    if (!isLoading && !user) router.replace("/");
+  }, [isLoading, user, router]);
 
   useEffect(() => {
     if (!token || !user || user.role !== "admin") return;

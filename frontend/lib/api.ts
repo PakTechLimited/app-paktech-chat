@@ -36,18 +36,16 @@ function readStore(key: string): string | null {
 }
 
 async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = readStore("pt_refresh");
-  if (!refreshToken) return null;
+  // The refresh token lives in an httpOnly cookie: JS never sees it, the
+  // browser attaches it automatically (credentials: "include").
   try {
     const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: "include",
     });
     if (!res.ok) return null;
     const data = (await res.json()) as TokenResponse;
     localStorage.setItem("pt_token", data.access_token);
-    localStorage.setItem("pt_refresh", data.refresh_token);
     window.dispatchEvent(
       new CustomEvent(AUTH_EVENTS.refreshed, { detail: data })
     );
@@ -93,6 +91,7 @@ export const api = {
     login: (email: string, password: string) =>
       fetch(`${API_BASE}/api/v1/auth/login`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       }).then((res) => handleResponse<TokenResponse>(res)),
@@ -105,16 +104,16 @@ export const api = {
     ) =>
       fetch(`${API_BASE}/api/v1/auth/register`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, email, password, display_name }),
       }).then((res) => handleResponse<TokenResponse>(res)),
 
-    refresh: (refresh_token: string) =>
-      fetch(`${API_BASE}/api/v1/auth/refresh`, {
+    logout: () =>
+      fetch(`${API_BASE}/api/v1/auth/logout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token }),
-      }).then((res) => handleResponse<TokenResponse>(res)),
+        credentials: "include",
+      }),
 
     me: () =>
       authedFetch(`/api/v1/auth/me`).then((res) => handleResponse<User>(res)),

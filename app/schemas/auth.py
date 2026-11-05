@@ -15,17 +15,12 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     user_id: int
     username: str
     display_name: str | None
     avatar_color: str
     role: str = "member"
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
 
 
 class UserMeResponse(BaseModel):

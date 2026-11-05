@@ -63,9 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  function persistAuth(newToken: string, refreshToken: string, newUser: AuthUser) {
+  function persistAuth(newToken: string, newUser: AuthUser) {
     localStorage.setItem("pt_token", newToken);
-    localStorage.setItem("pt_refresh", refreshToken);
     localStorage.setItem("pt_user", JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
@@ -73,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, password: string) {
     const data = await api.auth.login(email, password);
-    persistAuth(data.access_token, data.refresh_token, {
+    persistAuth(data.access_token, {
       id: data.user_id,
       username: data.username,
       display_name: data.display_name,
@@ -89,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     displayName?: string
   ) {
     const data = await api.auth.register(username, email, password, displayName);
-    persistAuth(data.access_token, data.refresh_token, {
+    persistAuth(data.access_token, {
       id: data.user_id,
       username: data.username,
       display_name: data.display_name,
@@ -99,6 +98,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    // Revoke the refresh token server-side and clear the cookie.
+    api.auth.logout().catch(() => {});
     localStorage.clear();
     setToken(null);
     setUser(null);

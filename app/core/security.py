@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -30,13 +31,16 @@ def create_access_token(subject: Any, role: str = "member") -> str:
     )
 
 
-def create_refresh_token(subject: Any) -> str:
+def create_refresh_token(subject: Any) -> tuple[str, str]:
+    """Return (token, jti). The jti is tracked in Redis for rotation/revocation."""
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    return jwt.encode(
-        {"sub": str(subject), "exp": expire, "type": "refresh"},
+    jti = uuid.uuid4().hex
+    token = jwt.encode(
+        {"sub": str(subject), "exp": expire, "type": "refresh", "jti": jti},
         settings.secret_key,
         algorithm=ALGORITHM,
     )
+    return token, jti
 
 
 def decode_token(token: str) -> dict | None:

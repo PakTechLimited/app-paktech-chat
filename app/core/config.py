@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
 
+    # Auth cookie: set COOKIE_SECURE=true whenever served over HTTPS
+    cookie_secure: bool = False
+
     # CORS
     allowed_origins: str = "http://localhost:8000,http://localhost:3000"
 

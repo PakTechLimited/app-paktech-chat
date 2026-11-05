@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.models.message import Message
 from app.models.post import Post
 from app.models.user import User
+from app.services.token_store import revoke_all
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ async def deactivate_user(
     if not target:
         raise HTTPException(status_code=404, detail="User not found.")
     target.is_active = False
+    await revoke_all(target.id)  # kill their refresh sessions immediately
     logger.info("Admin %s deactivated user %s", admin.username, target.username)
     return {"id": target.id, "is_active": target.is_active}
 
