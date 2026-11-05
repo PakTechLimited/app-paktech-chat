@@ -105,3 +105,8 @@ export interface PlatformStats {
   total_messages: number;
   total_posts: number;
 }
+
+export interface AITurn {
+  role: "user" | "assistant";
+  content: string;
+}

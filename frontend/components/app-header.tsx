@@ -1,23 +1,55 @@
 "use client";
 
 import Link from "next/link";
-import { LogOut, Shield } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Bot, LayoutGrid, LogOut, MessageSquare, Shield } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+const NAV = [
+  { href: "/", label: "Chat", icon: MessageSquare },
+  { href: "/wall", label: "Wall", icon: LayoutGrid },
+  { href: "/ai", label: "AI", icon: Bot },
+];
 
 export function AppHeader() {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
   if (!user) return null;
 
   const name = user.display_name || user.username;
 
   return (
     <header className="flex items-center justify-between border-b border-border px-4 py-3 md:px-6">
-      <Link href="/" className="font-semibold text-foreground">
-        PakTech Chat
-      </Link>
+      <div className="flex items-center gap-4 md:gap-6">
+        <Link href="/" className="hidden font-semibold text-foreground sm:block">
+          PakTech Chat
+        </Link>
+        <nav className="flex items-center gap-1">
+          {NAV.map(({ href, label, icon: Icon }) => {
+            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                  active
+                    ? "bg-primary/15 font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
 
       <div className="flex items-center gap-3">
         {user.role === "admin" && (

@@ -5,7 +5,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
-import { cn } from "@/lib/utils";
 import { Mail, Lock, Eye, EyeOff, MessageCircle, LayoutGrid, Sparkles } from "lucide-react";
 
 const features = [

@@ -2,10 +2,11 @@
 
 import logging
 from functools import lru_cache
+from typing import Literal
 
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.api.v1.dependencies import get_current_user
 from app.core.config import settings
@@ -22,8 +23,28 @@ SYSTEM_PROMPT = (
 )
 
 
+MAX_HISTORY_TURNS = 10
+
+
+class AITurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=4000)
+
+
 class AIChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
+    # Prior turns for context. Bounded, and must alternate user/assistant
+    # starting with the user, ending with the assistant.
+    history: list[AITurn] = Field(default_factory=list, max_length=MAX_HISTORY_TURNS)
+
+    @model_validator(mode="after")
+    def history_alternates(self):
+        for i, turn in enumerate(self.history):
+            if turn.role != ("user" if i % 2 == 0 else "assistant"):
+                raise ValueError("history must alternate user/assistant, user first")
+        if self.history and self.history[-1].role != "assistant":
+            raise ValueError("history must end with an assistant turn")
+        return self
 
 
 class AIChatResponse(BaseModel):
@@ -60,7 +81,10 @@ async def ai_chat(
             model=settings.ai_model,
             max_tokens=800,
             system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": payload.message}],
+            messages=[
+                *({"role": t.role, "content": t.content} for t in payload.history),
+                {"role": "user", "content": payload.message},
+            ],
         )
     except anthropic.APIError as exc:
         # Log the failure class only; never the prompt or the key.

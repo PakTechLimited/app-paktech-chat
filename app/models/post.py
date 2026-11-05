@@ -22,9 +22,12 @@ class Post(Base):
     )
 
     author: Mapped["User"] = relationship("User", back_populates="posts")
-    likes: Mapped[list["PostLike"]] = relationship("PostLike", back_populates="post")
+    # Deleting a post removes its likes/comments (else the FK rejects the delete).
+    likes: Mapped[list["PostLike"]] = relationship(
+        "PostLike", back_populates="post", cascade="all, delete-orphan"
+    )
     comments: Mapped[list["PostComment"]] = relationship(
-        "PostComment", back_populates="post"
+        "PostComment", back_populates="post", cascade="all, delete-orphan"
     )
 
 
@@ -61,3 +64,4 @@ class PostComment(Base):
     )
 
     post: Mapped["Post"] = relationship("Post", back_populates="comments")
+    author: Mapped["User"] = relationship("User")

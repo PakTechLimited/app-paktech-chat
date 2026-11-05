@@ -26,7 +26,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!token || !user || user.role !== "admin") return;
-    Promise.all([api.admin.stats(token), api.admin.listUsers(token)])
+    Promise.all([api.admin.stats(), api.admin.listUsers()])
       .then(([statsData, usersData]) => {
         setStats(statsData);
         setUsers(usersData);
@@ -39,8 +39,8 @@ export default function AdminPage() {
     if (!token) return;
     try {
       const result = target.is_active
-        ? await api.admin.deactivateUser(token, target.id)
-        : await api.admin.activateUser(token, target.id);
+        ? await api.admin.deactivateUser(target.id)
+        : await api.admin.activateUser(target.id);
       setUsers((prev) =>
         prev.map((u) => (u.id === target.id ? { ...u, is_active: result.is_active } : u))
       );

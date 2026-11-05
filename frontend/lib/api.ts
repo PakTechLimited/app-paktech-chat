@@ -7,6 +7,7 @@ import type {
   PlatformStats,
   Room,
   ChatMessage,
+  AITurn,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -153,59 +154,75 @@ export const api = {
   },
 
   posts: {
-    list: (token: string | null, tag?: string) => {
-      const url = new URL(`${API_BASE}/api/v1/posts/`);
-      if (tag) url.searchParams.set("tag", tag);
-      return fetch(url.toString(), { headers: authHeaders(token) }).then(
-        (res) => handleResponse<Post[]>(res)
+    list: (opts: { tag?: string | null; before?: number | null } = {}) => {
+      const qs = new URLSearchParams();
+      if (opts.tag) qs.set("tag", opts.tag);
+      if (opts.before) qs.set("before", String(opts.before));
+      const q = qs.toString();
+      return authedFetch(`/api/v1/posts/${q ? `?${q}` : ""}`).then((res) =>
+        handleResponse<Post[]>(res)
       );
-
     },
 
-    create: (token: string, content: string, tag?: string | null) =>
+    create: (content: string, tag?: string | null) =>
       authedFetch(`/api/v1/posts/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, tag }),
+        body: JSON.stringify({ content, tag: tag || null }),
       }).then((res) => handleResponse<Post>(res)),
 
-    toggleLike: (token: string, postId: number) =>
-      authedFetch(`/api/v1/posts/${postId}/like`, {
-        method: "POST",
-      }).then((res) => handleResponse<{ liked: boolean; likes_count: number }>(res)),
+    remove: async (postId: number) => {
+      const res = await authedFetch(`/api/v1/posts/${postId}`, { method: "DELETE" });
+      if (!res.ok) await handleResponse<never>(res);
+    },
+
+    toggleLike: (postId: number) =>
+      authedFetch(`/api/v1/posts/${postId}/like`, { method: "POST" }).then((res) =>
+        handleResponse<{ liked: boolean; likes_count: number }>(res)
+      ),
 
     comments: (postId: number) =>
-      fetch(`${API_BASE}/api/v1/posts/${postId}/comments`).then((res) =>
+      authedFetch(`/api/v1/posts/${postId}/comments`).then((res) =>
         handleResponse<Comment[]>(res)
       ),
 
-    addComment: (token: string, postId: number, content: string) =>
+    addComment: (postId: number, content: string) =>
       authedFetch(`/api/v1/posts/${postId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),
       }).then((res) => handleResponse<Comment>(res)),
   },
+
+  ai: {
+    chat: (message: string, history: AITurn[] = []) =>
+      authedFetch(`/api/v1/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, history }),
+      }).then((res) => handleResponse<{ reply: string }>(res)),
+  },
+
   admin: {
-    listUsers: (token: string) =>
+    listUsers: () =>
       authedFetch(`/api/v1/admin/users`).then((res) => handleResponse<AdminUser[]>(res)),
 
-    deactivateUser: (token: string, userId: number) =>
+    deactivateUser: (userId: number) =>
       authedFetch(`/api/v1/admin/users/${userId}/deactivate`, {
         method: "PATCH",
       }).then((res) => handleResponse<{ id: number; is_active: boolean }>(res)),
 
-    activateUser: (token: string, userId: number) =>
+    activateUser: (userId: number) =>
       authedFetch(`/api/v1/admin/users/${userId}/activate`, {
         method: "PATCH",
       }).then((res) => handleResponse<{ id: number; is_active: boolean }>(res)),
 
-    deletePost: (token: string, postId: number) =>
+    deletePost: (postId: number) =>
       authedFetch(`/api/v1/admin/posts/${postId}`, {
         method: "DELETE",
       }),
 
-    stats: (token: string) =>
+    stats: () =>
       authedFetch(`/api/v1/admin/stats`).then((res) => handleResponse<PlatformStats>(res)),
   },
 };

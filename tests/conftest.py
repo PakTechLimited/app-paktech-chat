@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-from app.api.v1.endpoints import ai, auth, messages, rooms, websocket
+from app.api.v1.endpoints import admin, ai, auth, messages, posts, rooms, websocket
 from app.db import session as db_session
 from app.db.seed import seed_default_rooms
 from app.db.session import Base, get_db
@@ -55,6 +55,8 @@ def auth_client(monkeypatch):
     app = FastAPI()
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(ai.router, prefix="/api/v1")
+    app.include_router(posts.router, prefix="/api/v1")
+    app.include_router(admin.router, prefix="/api/v1")
     app.include_router(rooms.router, prefix="/api/v1")
     app.include_router(messages.router, prefix="/api/v1")
     app.include_router(websocket.router)
