@@ -5,6 +5,7 @@ services:
       - "8000:8000"
     environment:
       APP_ENV: development
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: paktechchat

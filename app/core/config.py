@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
 
+    # AI assistant (key stays server-side; empty = feature disabled)
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-sonnet-5-5"
+
     # Auth cookie: set COOKIE_SECURE=true whenever served over HTTPS
     cookie_secure: bool = False
 

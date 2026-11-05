@@ -4,7 +4,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1.endpoints import admin, auth, health, messages, posts, rooms, websocket
+from app.api.v1.endpoints import (
+    admin,
+    ai,
+    auth,
+    health,
+    messages,
+    posts,
+    rooms,
+    websocket,
+)
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.db.session import Base, engine
@@ -35,6 +44,7 @@ app.include_router(rooms.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")
 app.include_router(posts.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(ai.router, prefix="/api/v1")
 app.include_router(websocket.router)
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

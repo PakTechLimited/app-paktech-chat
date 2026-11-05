@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-from app.api.v1.endpoints import auth
+from app.api.v1.endpoints import ai, auth
 from app.db.session import Base, get_db
 from app.services import redis_service
 
@@ -45,6 +45,7 @@ def auth_client(monkeypatch):
 
     app = FastAPI()
     app.include_router(auth.router, prefix="/api/v1")
+    app.include_router(ai.router, prefix="/api/v1")
     app.dependency_overrides[get_db] = _get_db
     with TestClient(app, base_url="http://localhost") as c:
         yield c
