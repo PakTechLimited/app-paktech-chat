@@ -1,4 +1,13 @@
-import type { TokenResponse, User, Post, Comment, AdminUser, PlatformStats } from "./types";
+import type {
+  TokenResponse,
+  User,
+  Post,
+  Comment,
+  AdminUser,
+  PlatformStats,
+  Room,
+  ChatMessage,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -55,7 +64,15 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
-function endSession() {
+/** Exchange the refresh cookie for a new access token (one call at a time). */
+export function refreshSession(): Promise<string | null> {
+  refreshInFlight ??= refreshAccessToken().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+export function endSession() {
   try {
     localStorage.clear();
   } catch {
@@ -75,10 +92,7 @@ async function authedFetch(path: string, init: RequestInit = {}): Promise<Respon
   const res = await send(readStore("pt_token"));
   if (res.status !== 401) return res;
 
-  refreshInFlight ??= refreshAccessToken().finally(() => {
-    refreshInFlight = null;
-  });
-  const newToken = await refreshInFlight;
+  const newToken = await refreshSession();
   if (!newToken) {
     endSession();
     return res;
@@ -117,6 +131,25 @@ export const api = {
 
     me: () =>
       authedFetch(`/api/v1/auth/me`).then((res) => handleResponse<User>(res)),
+  },
+
+  rooms: {
+    list: () =>
+      authedFetch(`/api/v1/rooms/`).then((res) => handleResponse<Room[]>(res)),
+
+    create: (name: string, description?: string) =>
+      authedFetch(`/api/v1/rooms/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description: description || null }),
+      }).then((res) => handleResponse<Room>(res)),
+  },
+
+  messages: {
+    list: (roomId: number, limit = 50) =>
+      authedFetch(`/api/v1/messages/${roomId}?limit=${limit}`).then((res) =>
+        handleResponse<ChatMessage[]>(res)
+      ),
   },
 
   posts: {
@@ -177,8 +210,10 @@ export const api = {
   },
 };
 
-export function wsUrl(roomId: number, username: string): string {
+/** WebSocket URL for a room. No identity in the URL: the client authenticates
+ * with its access token in the first frame (see use-room-socket.ts). */
+export function wsUrl(roomId: number): string {
   const proto = API_BASE.startsWith("https") ? "wss" : "ws";
   const host = API_BASE.replace(/^https?:\/\//, "");
-  return `${proto}://${host}/ws/${roomId}?username=${encodeURIComponent(username)}`;
+  return `${proto}://${host}/ws/${roomId}`;
 }

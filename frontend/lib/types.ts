@@ -30,10 +30,23 @@ export interface TokenResponse {
 export interface Room {
   id: number;
   name: string;
-  description?: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  content: string;
+  room_id: number;
+  author_id: number;
+  author_username: string | null;
+  author_avatar_color: string | null;
+  created_at: string;
 }
 
 export type WSEventType =
+  | "ready"
+  | "error"
   | "message"
   | "user_joined"
   | "user_left"
@@ -42,10 +55,11 @@ export type WSEventType =
 
 export interface WSEvent {
   type: WSEventType;
-  username: string;
+  id?: number;
+  username?: string;
   content?: string;
   timestamp?: string;
-  avatar_color?: string;
+  avatar_color?: string | null;
 }
 
 export interface PostAuthor {
