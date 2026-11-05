@@ -21,7 +21,6 @@ python-dotenv==1.0.1
 
 # Security
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
 
 # HTTP client (health checks, webhooks)
 httpx==0.27.0
@@ -30,3 +29,10 @@ httpx==0.27.0
 pytest==8.2.2
 pytest-asyncio==0.23.7
 httpx==0.27.0
+
+# Auth
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.9
+email-validator==2.1.1
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1

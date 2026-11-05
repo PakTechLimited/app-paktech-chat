@@ -1,3 +1,9 @@
+from app.schemas.auth import (
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserMeResponse,
+)
 from app.schemas.message import MessageCreate, MessageOut
 from app.schemas.room import RoomCreate, RoomOut
 from app.schemas.user import UserCreate, UserOut
@@ -12,4 +18,8 @@ __all__ = [
     "MessageOut",
     "WSEvent",
     "WSEventType",
+    "RegisterRequest",
+    "LoginRequest",
+    "TokenResponse",
+    "UserMeResponse",
 ]
