@@ -35,6 +35,7 @@ app/
   schemas/            Pydantic I/O schemas + WS event types
   services/           ConnectionManager · RedisService
   main.py             FastAPI app factory + lifespan hooks
+alembic/              Migration environment + versions/
 frontend/               Next.js client (chat, wall, AI)
 tests/
   test_health.py      Health endpoint smoke tests
@@ -52,12 +53,32 @@ cp .env.example .env
 # 2. Start full stack
 docker compose up --build
 
-# 3. Open browser
-open http://localhost:8000
+# 3. Open the web client (cd frontend && npm install && npm run dev)
+open http://localhost:3000
 
 # 4. API docs (dev only)
 open http://localhost:8000/docs
 ```
+
+## Database migrations (Alembic)
+
+The schema is owned by Alembic, never by the app at startup. In Compose a
+one-shot `migrate` service runs `alembic upgrade head` and the app waits for it
+(in Kubernetes this becomes a Job / init container).
+
+```bash
+# apply migrations (outside Docker, with the same POSTGRES_* env vars)
+alembic upgrade head
+
+# after changing a model: generate, review, then commit the new file
+alembic revision --autogenerate -m "describe the change"
+
+alembic downgrade -1      # step back one revision
+```
+
+A database created by the old `create_all` startup hook upgrades as-is: the
+baseline skips tables that already exist. `tests/test_migrations.py` checks
+fresh installs, legacy upgrades and that migrations match the models.
 
 ## Pre-commit setup
 

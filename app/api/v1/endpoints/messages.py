@@ -31,7 +31,8 @@ async def get_room_messages(
         select(Message)
         .options(selectinload(Message.author))
         .where(Message.room_id == room_id)
-        .order_by(Message.created_at.desc())
+        # id breaks ties between messages stamped in the same instant
+        .order_by(Message.created_at.desc(), Message.id.desc())
         .limit(limit)
     )
     messages = list(result.scalars().all())

@@ -50,19 +50,6 @@ async def user_from_access_token(token: str, db: AsyncSession) -> User | None:
     return user if user and user.is_active else None
 
 
-async def get_optional_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
-    db: AsyncSession = Depends(get_db),
-) -> User | None:
-    if not credentials:
-        return None
-    claims = decode_token(credentials.credentials)
-    if not claims or claims.get("type") != "access":
-        return None
-    result = await db.execute(select(User).where(User.id == int(claims["sub"])))
-    return result.scalar_one_or_none()
-
-
 async def require_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:

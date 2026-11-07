@@ -10,6 +10,12 @@ line_length = 88
 exclude_dirs = ["tests", ".venv"]
 skips = ["B101"]
 
+[tool.coverage.run]
+source = ["app"]
+# SQLAlchemy's async layer runs on greenlets; without this, lines after an
+# awaited DB call are reported as missed.
+concurrency = ["greenlet", "thread"]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.backends.legacy:build"

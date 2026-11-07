@@ -16,7 +16,7 @@ from app.api.v1.endpoints import (
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.db.seed import seed_default_rooms
-from app.db.session import Base, engine
+from app.db.session import engine
 from app.services.redis_service import close_redis
 
 setup_logging()
@@ -51,9 +51,8 @@ app.include_router(websocket.router)
 @app.on_event("startup")
 async def on_startup() -> None:
     logger.info("Starting PakTech Chat v2 (env=%s)", settings.app_env)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables initialised")
+    # Schema is managed by Alembic (`alembic upgrade head`), run before the app
+    # starts (the `migrate` Compose service / a Kubernetes Job), never by workers.
     await seed_default_rooms()
 
 

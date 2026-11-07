@@ -15,13 +15,29 @@ services:
       REDIS_PORT: 6379
       SECRET_KEY: local-dev-secret-change-me
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     volumes:
       - ./app:/app/app
     restart: unless-stopped
+
+  # One-shot job: apply database migrations, then exit. The app waits for it, so
+  # the two gunicorn workers never race to create the schema.
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: paktechchat
+      POSTGRES_USER: chatuser
+      POSTGRES_PASSWORD: chatpass
+      SECRET_KEY: local-dev-secret-change-me
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:16-alpine
