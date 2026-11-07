@@ -25,3 +25,15 @@ htmlcov/
 
 # Docker
 *.log
+
+# Terraform (commit .terraform.lock.hcl, never state or variable files)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+
+# Terraform saved plans can contain sensitive values
+tfplan
+*.tfplan

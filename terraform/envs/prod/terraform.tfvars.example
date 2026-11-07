@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+# az ad signed-in-user show --query id -o tsv
+admin_object_id = "00000000-0000-0000-0000-000000000000"
