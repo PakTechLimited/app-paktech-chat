@@ -2,7 +2,8 @@
 
 Real-time WebSocket chat application — PakTech DevSecOps portfolio project.
 
-**Stack:** FastAPI · Redis Pub/Sub · PostgreSQL · HTML/JS frontend
+**Stack:** FastAPI · Redis Pub/Sub · PostgreSQL · Next.js frontend · Terraform on Azure (AKS)
+**Domain:** paktechlimited.chat
 **GitOps repo:** [gitops-paktech-chat](https://github.com/PakTechLimited/gitops-paktech-chat)
 
 ---
@@ -10,7 +11,7 @@ Real-time WebSocket chat application — PakTech DevSecOps portfolio project.
 ## Architecture
 
 ```
-Browser (HTML/JS)
+Browser (Next.js)
      │  WebSocket ws://host/ws/{room_id}?username=alice
      ▼
 FastAPI (Uvicorn/Gunicorn)
@@ -36,9 +37,9 @@ app/
   services/           ConnectionManager · RedisService
   main.py             FastAPI app factory + lifespan hooks
 alembic/              Migration environment + versions/
-frontend/               Next.js client (chat, wall, AI)
-tests/
-  test_health.py      Health endpoint smoke tests
+frontend/             Next.js client (chat, wall, AI) + Dockerfile
+tests/                API, auth, rooms, messages, admin, migrations
+terraform/            Azure infrastructure (Phase 2), see below
 Dockerfile
 docker-compose.yml    Local full-stack (app + postgres + redis)
 .pre-commit-config.yaml  Bandit · Semgrep · Black · isort
@@ -121,13 +122,58 @@ pre-commit run --all-files   # first-time scan
 {"type": "typing_stop", "room_id": 1, "username": "alice", ...}
 ```
 
+## Infrastructure (Terraform, Phase 2)
+
+Applied to Azure (`rg-paktech-prod`, East US). State lives in a storage account
+(`paktechtfstateprod`) with Azure AD auth; created once by `terraform/bootstrap/bootstrap-state.sh`.
+
+```
+terraform/
+  bootstrap/           one-time script: state storage account + role assignment
+  modules/
+    network/           VNet 10.10.0.0/16, AKS subnet
+    acr/               Azure Container Registry (paktechacr)
+    keyvault/          Key Vault (kv-paktech-prod), RBAC mode
+    aks/               AKS cluster + three node pools
+    workload-identity/ user-assigned identity + federated credentials (dev/staging/prod)
+    github-oidc/       Azure AD app for GitHub Actions (no stored secrets)
+    dns/               Azure DNS zone, apex A record, www CNAME
+  envs/prod/           wires the modules together
+```
+
+- **AKS** (`aks-paktech-prod`): Azure CNI Overlay with Cilium, OIDC issuer and
+  Workload Identity, Key Vault CSI driver, AcrPull for the kubelet identity.
+- **Node pools:** `system` (1 node, `CriticalAddonsOnly` taint), `apps` (autoscaling 1-3,
+  `workload=apps`), `monitoring` (1 node, `workload=monitoring:NoSchedule`) for Phase 6.
+- **Workload Identity:** `id-paktech-chat-prod` is trusted by service account `paktech-chat`
+  in the `paktech-chat-dev`, `-staging` and `-prod` namespaces, with read access to Key Vault secrets.
+- **GitHub OIDC:** `sp-github-paktech-cicd` trusts the repo's `develop`, `staging` and `main`
+  branches, pull requests and the `prod` environment; it can push to ACR and get AKS credentials.
+- **Ingress and DNS:** static IP `pip-ingress-paktech-prod` (20.124.185.63); `paktechlimited.chat`
+  is delegated from Namecheap to Azure DNS.
+
+```bash
+cd terraform/envs/prod
+cp terraform.tfvars.example terraform.tfvars   # fill in your values
+terraform init && terraform plan -out tfplan && terraform apply tfplan
+$(terraform output -raw get_credentials_command)
+```
+
+Never commit `terraform.tfvars` or saved plans (`tfplan`); both are git-ignored.
+The cluster costs roughly $8-9/day running; pause it when idle:
+
+```bash
+az aks stop  -g rg-paktech-prod -n aks-paktech-prod
+az aks start -g rg-paktech-prod -n aks-paktech-prod
+```
+
 ## Phases
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| 1 | ✅ Complete | Local dev, pre-commit, Docker Compose |
-| 2 | ⏳ | Terraform — AKS, ACR, Key Vault, Workload Identity |
-| 3 | ⏳ | GitOps — Argo CD ApplicationSets (dev/staging/prod) |
-| 4 | ⏳ | CI/CD — GitHub Actions + DevSecOps pipeline |
-| 5 | ⏳ | Runtime Security — Falco, OPA Gatekeeper, Trivy Operator |
-| 6 | ⏳ | Observability — Prometheus, Grafana, AlertManager → Slack |
+| 1 | ✅ Complete | Local dev, pre-commit, Docker Compose, Next.js frontend, containerised web service |
+| 2 | ✅ Applied | Terraform: AKS (three node pools), ACR, Key Vault, Workload Identity, GitHub OIDC, DNS |
+| 3 | ⏳ Next | GitOps: Argo CD ApplicationSets (dev/staging/prod), ingress, TLS, Helm chart |
+| 4 | ⏳ | CI/CD: GitHub Actions + DevSecOps pipeline |
+| 5 | ⏳ | Runtime security: Falco, OPA Gatekeeper, Trivy Operator |
+| 6 | ⏳ | Observability: Prometheus, Grafana, AlertManager to Slack |
