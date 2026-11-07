@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV = [
   { href: "/", label: "Chat", icon: MessageSquare },
@@ -52,6 +53,7 @@ export function AppHeader() {
       </div>
 
       <div className="flex items-center gap-3">
+        <ThemeToggle />
         {user.role === "admin" && (
           <Button asChild variant="ghost" size="sm">
             <Link href="/admin">

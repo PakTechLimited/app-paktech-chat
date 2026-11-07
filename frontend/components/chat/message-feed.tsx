@@ -67,7 +67,7 @@ export function MessageFeed({ items, me, loading }: Props) {
 
         if (item.kind === "system") {
           return (
-            <div key={item.id}>
+            <div key={item.id} className="animate-in fade-in-0 duration-300">
               {separator}
               <p className="py-1 text-center text-xs text-muted-foreground">{item.text}</p>
             </div>
@@ -75,7 +75,7 @@ export function MessageFeed({ items, me, loading }: Props) {
         }
 
         return (
-          <div key={item.id}>
+          <div key={item.id} className="animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
             {separator}
             <div className={cn("flex gap-2.5", mine && "flex-row-reverse", grouped ? "mt-0.5" : "mt-3")}>
               {grouped ? (
@@ -102,7 +102,7 @@ export function MessageFeed({ items, me, loading }: Props) {
                   className={cn(
                     "rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap",
                     mine
-                      ? "rounded-tr-md bg-gradient-to-br from-[#7c5cbf] to-[#c46bb5] text-white"
+                      ? "rounded-tr-md bg-linear-to-br from-brand-from to-brand-to text-white"
                       : "rounded-tl-md border border-border bg-card text-foreground"
                   )}
                 >

@@ -109,7 +109,7 @@ export function PostCard({ post, me, onChange, onDeleted, onTagClick }: Props) {
   }
 
   return (
-    <article className="rounded-xl border border-border bg-card p-4">
+    <article className="rounded-xl border border-border bg-card p-4 transition-shadow hover:shadow-md animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
       <div className="flex items-start gap-3">
         <AuthorAvatar name={name} color={post.author.avatar_color} />
         <div className="min-w-0 flex-1">
@@ -135,7 +135,7 @@ export function PostCard({ post, me, onChange, onDeleted, onTagClick }: Props) {
               size="sm"
               onClick={toggleLike}
               aria-pressed={post.liked_by_me}
-              className={cn(post.liked_by_me && "text-[#c46bb5]")}
+              className={cn(post.liked_by_me && "text-fuchsia-600 dark:text-[#c46bb5]")}
             >
               <Heart className={cn(post.liked_by_me && "fill-current")} />
               {post.likes_count}

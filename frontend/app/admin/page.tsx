@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, MessageSquare, LayoutGrid, UserCheck } from "lucide-react";
+import { Users, MessageSquare, LayoutGrid, UserCheck, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminPage() {
@@ -155,7 +155,7 @@ function StatCard({
   label,
   value,
 }: {
-  icon: React.ElementType;
+  icon: LucideIcon;
   label: string;
   value: number | undefined;
 }) {

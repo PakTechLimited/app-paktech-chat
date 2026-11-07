@@ -67,7 +67,7 @@ export function AiChat() {
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-6">
         {entries.length === 0 && (
           <div className="py-8 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7c5cbf] to-[#c46bb5]">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-brand-from to-brand-to">
               <Sparkles className="h-6 w-6 text-white" />
             </div>
             <h2 className="text-lg font-semibold text-foreground">PakTech AI</h2>
@@ -89,7 +89,13 @@ export function AiChat() {
         )}
 
         {entries.map((e, i) => (
-          <div key={i} className={cn("flex gap-2.5", e.role === "user" && "flex-row-reverse")}>
+          <div
+            key={i}
+            className={cn(
+              "flex gap-2.5 animate-in fade-in-0 slide-in-from-bottom-2 duration-300",
+              e.role === "user" && "flex-row-reverse"
+            )}
+          >
             {e.role === "assistant" && (
               <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20">
                 <Bot className="h-4 w-4 text-primary" />
@@ -100,7 +106,7 @@ export function AiChat() {
               className={cn(
                 "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap",
                 e.role === "user"
-                  ? "rounded-tr-md bg-gradient-to-br from-[#7c5cbf] to-[#c46bb5] text-white"
+                  ? "rounded-tr-md bg-linear-to-br from-brand-from to-brand-to text-white"
                   : e.error
                     ? "rounded-tl-md border border-destructive/40 bg-destructive/10 text-foreground"
                     : "rounded-tl-md border border-border bg-card text-foreground"

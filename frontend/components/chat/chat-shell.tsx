@@ -31,7 +31,7 @@ function StatusPill({ status }: { status: SocketStatus }) {
         : "bg-amber-400";
   return (
     <span className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
-      <span className={cn("h-1.5 w-1.5 rounded-full", color)} />
+      <span className={cn("h-1.5 w-1.5 rounded-full", color, status === "online" && "animate-live")} />
       {STATUS_LABEL[status]}
     </span>
   );
@@ -149,7 +149,18 @@ function RoomView({ room, me }: { room: Room; me: AuthUser }) {
 
       <MessageFeed items={items} me={me.username} loading={loading} />
 
-      <div className="h-5 px-4 text-xs text-muted-foreground md:px-6" aria-live="polite">
+      <div className="flex h-5 items-center gap-1.5 px-4 text-xs text-muted-foreground md:px-6" aria-live="polite">
+        {typing.length > 0 && (
+          <span className="inline-flex items-center gap-0.5" aria-hidden="true">
+            {[0, 150, 300].map((d) => (
+              <span
+                key={d}
+                className="h-1 w-1 animate-typing rounded-full bg-muted-foreground"
+                style={{ animationDelay: `${d}ms` }}
+              />
+            ))}
+          </span>
+        )}
         {typingText(typing)}
       </div>
       <MessageInput

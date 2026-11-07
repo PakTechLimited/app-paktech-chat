@@ -5,6 +5,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth-context";
+import { ThemeProvider } from "@/components/theme-provider";
 
 // Fonts are self-hosted from npm packages: builds never call Google Fonts.
 const inter = localFont({
@@ -30,8 +31,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={cn(
-        "dark",
         "h-full",
         "antialiased",
         GeistMono.variable,
@@ -40,10 +41,17 @@ export default function RootLayout({
       )}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <AuthProvider>
-          {children}
-          <Toaster theme="dark" position="bottom-right" />
-        </AuthProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            {children}
+            <Toaster position="bottom-right" />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
