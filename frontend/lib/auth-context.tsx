@@ -57,8 +57,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener(AUTH_EVENTS.loggedOut, onLoggedOut);
 
     // The access token only lives in memory, so after a page load restore the
-    // session from the httpOnly refresh cookie (a no-op 401 when logged out).
-    refreshSession().finally(() => setIsLoading(false));
+    // session from the httpOnly refresh cookie. The non-secret pt_session hint
+    // tells us whether a session can exist, so logged-out visitors skip the
+    // pointless (401) call.
+    const hasHint = document.cookie
+      .split("; ")
+      .some((c) => c.startsWith("pt_session="));
+    (hasHint ? refreshSession() : Promise.resolve(null)).finally(() =>
+      setIsLoading(false)
+    );
 
     return () => {
       window.removeEventListener(AUTH_EVENTS.refreshed, onRefreshed);

@@ -23,6 +23,18 @@ services:
       - ./app:/app/app
     restart: unless-stopped
 
+  web:
+    build:
+      context: ./frontend
+      args:
+        # The browser (not the container) calls the API, so this is the host-published port.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - app
+    restart: unless-stopped
+
   # One-shot job: apply database migrations, then exit. The app waits for it, so
   # the two gunicorn workers never race to create the schema.
   migrate:

@@ -10,7 +10,9 @@ import type {
   AITurn,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Baked in at build time. Unset = local dev API; empty string = same origin
+// (a reverse proxy / ingress routes /api and /ws to the backend).
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 function authHeaders(token: string | null): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -272,6 +274,10 @@ export const api = {
 /** WebSocket URL for a room. No identity in the URL: the client authenticates
  * with its access token in the first frame (see use-room-socket.ts). */
 export function wsUrl(roomId: number): string {
+  if (API_BASE === "") {
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    return `${scheme}://${window.location.host}/ws/${roomId}`;
+  }
   const proto = API_BASE.startsWith("https") ? "wss" : "ws";
   const host = API_BASE.replace(/^https?:\/\//, "");
   return `${proto}://${host}/ws/${roomId}`;

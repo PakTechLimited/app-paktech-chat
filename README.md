@@ -53,12 +53,28 @@ cp .env.example .env
 # 2. Start full stack
 docker compose up --build
 
-# 3. Open the web client (cd frontend && npm install && npm run dev)
+# 3. Open the web client (the `web` service; migrations run first, then api + web)
 open http://localhost:3000
+#    For hot reload instead: cd frontend && npm install && npm run dev
 
 # 4. API docs (dev only)
 open http://localhost:8000/docs
 ```
+
+## Frontend container
+
+`frontend/Dockerfile` is a multi-stage build (deps → build → runtime) that ships
+only Next's `standalone` server as a non-root user (~40 MB of app files).
+`NEXT_PUBLIC_API_URL` is inlined into the browser bundle at **build time**:
+
+| Build arg value          | Meaning                                                        |
+| ------------------------ | -------------------------------------------------------------- |
+| `http://localhost:8000`  | local Compose: the browser calls the published API port        |
+| *(empty)*                | same origin: an ingress routes `/api` and `/ws` to the backend |
+
+In the same-origin setup, add the public site URL to the API's `ALLOWED_ORIGINS`
+(CORS, the CSRF Origin check and the WebSocket origin check all use it).
+Fonts are self-hosted from npm packages, so builds never call Google.
 
 ## Database migrations (Alembic)
 

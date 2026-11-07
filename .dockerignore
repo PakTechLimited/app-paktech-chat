@@ -10,3 +10,4 @@ tests/
 *.md
 .pre-commit-config.yaml
 docker-compose.yml
+frontend/
