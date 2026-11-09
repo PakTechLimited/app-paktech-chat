@@ -1,0 +1,33 @@
+name: Rollback
+# Targeted revert of ONE file (never `git revert HEAD`) - see vault gotcha Git-Revert-Danger.
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        type: choice
+        options: [dev, staging, prod]
+      steps_back:
+        description: How many commits of that values file to go back
+        default: "1"
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env == 'prod' && 'prod' || 'nonprod' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: PakTechLimited/gitops-paktech-chat
+          ref: main
+          token: ${{ secrets.GITOPS_TOKEN }}
+          fetch-depth: 0
+      - name: Restore previous values file
+        run: |
+          f=environments/${{ inputs.env }}/values.yaml
+          prev=$(git log --format=%H -n $(( ${{ inputs.steps_back }} + 1 )) -- $f | tail -1)
+          git checkout $prev -- $f
+          git diff --cached
+          git config user.name "paktech-ci"
+          git config user.email "ci@paktechlimited.chat"
+          git commit -m "rollback(${{ inputs.env }}): restore $f from $prev"
+          git push origin main
