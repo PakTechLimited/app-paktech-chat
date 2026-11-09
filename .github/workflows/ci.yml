@@ -111,10 +111,15 @@ jobs:
           az acr build -r $ACR -t paktech-chat-web:${{ steps.tag.outputs.tag }} \
             --build-arg NEXT_PUBLIC_API_URL= -f frontend/Dockerfile frontend
       - name: Trivy scan (block CRITICAL)
+        env:
+          TRIVY_VERSION: "0.76.1"
+          TRIVY_SHA256: c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0
         run: |
           az acr login -n $ACR
+          curl -fsSL -o trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  trivy.tgz" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/bin"
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "$RUNNER_TEMP/bin" v0.58.1
+          tar -xzf trivy.tgz -C "$RUNNER_TEMP/bin" trivy
           for img in $IMAGE_API $IMAGE_WEB; do
             "$RUNNER_TEMP/bin/trivy" image --severity CRITICAL --ignore-unfixed --exit-code 1 $img:${{ steps.tag.outputs.tag }}
           done
