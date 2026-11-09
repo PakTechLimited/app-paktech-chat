@@ -1,0 +1,46 @@
+name: Promote
+# Manual promotion: copy the image tags already running in one environment to the next.
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: Source environment
+        type: choice
+        options: [dev, staging]
+      to:
+        description: Target environment
+        type: choice
+        options: [staging, prod]
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.to == 'prod' && 'prod' || 'nonprod' }}
+    steps:
+      - name: Guard
+        run: |
+          [ "${{ inputs.from }}" != "${{ inputs.to }}" ] || { echo "from and to must differ"; exit 1; }
+          [ "${{ inputs.from }}" != "staging" ] || [ "${{ inputs.to }}" == "prod" ] || { echo "staging can only promote to prod"; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          repository: PakTechLimited/gitops-paktech-chat
+          ref: main
+          token: ${{ secrets.GITOPS_TOKEN }}
+      - name: Copy tags
+        run: |
+          src=environments/${{ inputs.from }}/values.yaml
+          dst=environments/${{ inputs.to }}/values.yaml
+          api=$(grep -oE 'api: \{tag: [^}]*\}' $src)
+          web=$(grep -oE 'web: \{tag: [^}]*\}' $src)
+          case "$api$web" in *REPLACE_WITH*|"") echo "source has no real tag"; exit 1;; esac
+          sed -i -E "s|api: \{tag: [^}]*\}|$api|; s|web: \{tag: [^}]*\}|$web|" $dst
+          git diff
+      - name: Commit and push
+        run: |
+          git config user.name "paktech-ci"
+          git config user.email "ci@paktechlimited.chat"
+          git commit -am "promote: ${{ inputs.from }} -> ${{ inputs.to }}"
+          git push origin main

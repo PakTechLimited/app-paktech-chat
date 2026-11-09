@@ -1,0 +1,147 @@
+name: CI
+# develop -> dev, staging -> staging, main -> prod (prod needs approval)
+on:
+  pull_request:
+    branches: [develop, staging, main]
+  push:
+    branches: [develop, staging, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ACR: paktechacr
+  IMAGE_API: paktechacr.azurecr.io/paktech-chat-api
+  IMAGE_WEB: paktechacr.azurecr.io/paktech-chat-web
+
+jobs:
+  # ---------- 1. Lint + tests + SAST (backend) ----------
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt fakeredis aiosqlite pytest-cov black==24.4.2 isort==5.13.2 "bandit[toml]==1.7.8" pip-audit
+      - name: Format check
+        run: |
+          black --check app tests alembic
+          isort --check-only --profile black app tests alembic
+      - name: Bandit (SAST)
+        run: bandit -c pyproject.toml -r app
+      - name: Tests
+        run: pytest -q --cov=app --cov-report=term-missing
+      - name: pip-audit (dependency CVEs)
+        continue-on-error: true   # TEMPORARY until the fix/python-deps PR; findings stay visible
+        run: pip-audit -r requirements.txt
+
+  semgrep:
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: semgrep scan --config p/python --config p/secrets --config p/dockerfile --error --quiet
+
+  # ---------- 2. Lint + audit (frontend) ----------
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - name: npm audit (fail on critical)
+        run: npm audit --audit-level=critical
+
+  # ---------- 3. IaC scan ----------
+  iac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkov (Terraform + Dockerfile)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: terraform,dockerfile
+          soft_fail: true   # report-only: lab deliberately skips some controls
+          output_format: cli,sarif
+          output_file_path: console,checkov.sarif
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: .
+          soft_fail: true
+
+  # ---------- 4. Build, scan, push (not on PRs) ----------
+  build:
+    if: github.event_name != 'pull_request'
+    needs: [backend, semgrep, frontend, iac]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Build in ACR Tasks
+        run: |
+          az acr build -r $ACR -t paktech-chat-api:${{ steps.tag.outputs.tag }} -f Dockerfile .
+          az acr build -r $ACR -t paktech-chat-web:${{ steps.tag.outputs.tag }} \
+            --build-arg NEXT_PUBLIC_API_URL= -f frontend/Dockerfile frontend
+      - name: Trivy scan (block CRITICAL)
+        run: |
+          TOKEN=$(az acr login -n $ACR --expose-token --query accessToken -o tsv)
+          export TRIVY_USERNAME=00000000-0000-0000-0000-000000000000 TRIVY_PASSWORD=$TOKEN
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.58.1
+          for img in $IMAGE_API $IMAGE_WEB; do
+            trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 $img:${{ steps.tag.outputs.tag }}
+          done
+
+  # ---------- 5. GitOps update ----------
+  gitops:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    # main -> prod waits for a named reviewer (GitHub environment "prod")
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'nonprod' }}
+    env:
+      ENVNAME: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'staging' && 'staging' || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: PakTechLimited/gitops-paktech-chat
+          ref: main
+          token: ${{ secrets.GITOPS_TOKEN }}
+      - name: Bump image tags
+        run: |
+          f=environments/$ENVNAME/values.yaml
+          sed -i -E "s|\{tag: [^}]*\}|{tag: ${{ needs.build.outputs.tag }}}|" $f
+          git diff --stat
+      - name: Commit and push
+        run: |
+          git config user.name "paktech-ci"
+          git config user.email "ci@paktechlimited.chat"
+          git commit -am "ci($ENVNAME): deploy ${{ needs.build.outputs.tag }} from ${{ github.repository }}@${{ github.sha }}"
+          git push origin main
