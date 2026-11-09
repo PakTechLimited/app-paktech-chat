@@ -31,3 +31,17 @@ resource "azurerm_role_assignment" "aks_cluster_user" {
   role_definition_name = "Azure Kubernetes Service Cluster User Role"
   principal_id         = azuread_service_principal.ci.object_id
 }
+
+# az acr build (ACR Tasks) needs more than push/pull: it must read the registry
+# and schedule a cloud build run. Scoped to this one registry only.
+resource "azurerm_role_assignment" "acr_reader" {
+  scope                = var.acr_id
+  role_definition_name = "Reader"
+  principal_id         = azuread_service_principal.ci.object_id
+}
+
+resource "azurerm_role_assignment" "acr_tasks" {
+  scope                = var.acr_id
+  role_definition_name = "Container Registry Tasks Contributor"
+  principal_id         = azuread_service_principal.ci.object_id
+}
