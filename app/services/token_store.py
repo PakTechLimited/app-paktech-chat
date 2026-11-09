@@ -9,7 +9,7 @@ session for that user.
 
 from app.services.redis_service import get_redis
 
-_TOKEN_KEY = "refresh:{jti}"
+_TOKEN_KEY = "refresh:{jti}"  # nosec B105 - Redis key template, not a secret
 _USER_KEY = "user_refresh:{user_id}"
 
 

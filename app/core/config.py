@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     # Application
     app_env: str = "development"
-    app_host: str = "0.0.0.0"
+    app_host: str = "0.0.0.0"  # nosec B104 - container bind
     app_port: int = 8000
     secret_key: str = "change-me-in-production"
 
