@@ -112,11 +112,11 @@ jobs:
             --build-arg NEXT_PUBLIC_API_URL= -f frontend/Dockerfile frontend
       - name: Trivy scan (block CRITICAL)
         run: |
-          TOKEN=$(az acr login -n $ACR --expose-token --query accessToken -o tsv)
-          export TRIVY_USERNAME=00000000-0000-0000-0000-000000000000 TRIVY_PASSWORD=$TOKEN
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.58.1
+          az acr login -n $ACR
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "$RUNNER_TEMP/bin" v0.58.1
           for img in $IMAGE_API $IMAGE_WEB; do
-            trivy image --severity CRITICAL --ignore-unfixed --exit-code 1 $img:${{ steps.tag.outputs.tag }}
+            "$RUNNER_TEMP/bin/trivy" image --severity CRITICAL --ignore-unfixed --exit-code 1 $img:${{ steps.tag.outputs.tag }}
           done
 
   # ---------- 5. GitOps update ----------
