@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt fakeredis aiosqlite pytest-cov black==24.4.2 isort==5.13.2 "bandit[toml]==1.7.8" pip-audit
+      - run: pip install -r requirements-dev.txt black==24.4.2 isort==5.13.2 "bandit[toml]==1.7.8" pip-audit
       - name: Format check
         run: |
           black --check app tests alembic
@@ -39,8 +39,7 @@ jobs:
       - name: Tests
         run: pytest -q --cov=app --cov-report=term-missing
       - name: pip-audit (dependency CVEs)
-        continue-on-error: true   # TEMPORARY until the fix/python-deps PR; findings stay visible
-        run: pip-audit -r requirements.txt
+        run: pip-audit -r requirements-dev.txt
 
   semgrep:
     runs-on: ubuntu-latest
