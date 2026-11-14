@@ -17,5 +17,5 @@ source = ["app"]
 concurrency = ["greenlet", "thread"]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=84.2.1"]
 build-backend = "setuptools.backends.legacy:build"
