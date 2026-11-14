@@ -10,7 +10,7 @@ gunicorn==27.0.1
 websockets==17.4
 
 # Database
-sqlalchemy==2.0.57
+sqlalchemy==2.1.8
 asyncpg==0.32.0
 alembic==1.20.1
 
