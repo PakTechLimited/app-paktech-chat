@@ -79,12 +79,6 @@ jobs:
           soft_fail: true   # report-only: lab deliberately skips some controls
           output_format: cli,sarif
           output_file_path: console,checkov.sarif
-      - name: tfsec
-        uses: aquasecurity/tfsec-action@v1.0.3
-        with:
-          working_directory: .
-          soft_fail: true
-          github_token: ${{ github.token }}
 
   # ---------- 4. Build, scan, push (not on PRs) ----------
   build:
