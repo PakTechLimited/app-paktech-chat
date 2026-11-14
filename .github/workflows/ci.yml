@@ -18,6 +18,9 @@ env:
   ACR: paktechacr
   IMAGE_API: paktechacr.azurecr.io/paktech-chat-api
   IMAGE_WEB: paktechacr.azurecr.io/paktech-chat-web
+  # One pinned Trivy for every job. Change the version and the hash together.
+  TRIVY_VERSION: "0.76.1"
+  TRIVY_SHA256: c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0
 
 jobs:
   # ---------- 1. Lint + tests + SAST (backend) ----------
@@ -79,6 +82,13 @@ jobs:
           soft_fail: true   # report-only: lab deliberately skips some controls
           output_format: cli,sarif
           output_file_path: console,checkov.sarif
+      - name: Trivy config scan (Terraform + Dockerfiles, report-only)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/trivy.tgz" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  $RUNNER_TEMP/trivy.tgz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/trivy.tgz" -C "$RUNNER_TEMP/bin" trivy
+          "$RUNNER_TEMP/bin/trivy" config --severity HIGH,CRITICAL --exit-code 0 .
 
   # ---------- 4. Build, scan, push (not on PRs) ----------
   build:
@@ -105,9 +115,6 @@ jobs:
           az acr build -r $ACR -t paktech-chat-web:${{ steps.tag.outputs.tag }} \
             --build-arg NEXT_PUBLIC_API_URL= -f frontend/Dockerfile frontend
       - name: Trivy scan (block CRITICAL)
-        env:
-          TRIVY_VERSION: "0.76.1"
-          TRIVY_SHA256: c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0
         run: |
           az acr login -n $ACR
           curl -fsSL -o trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"

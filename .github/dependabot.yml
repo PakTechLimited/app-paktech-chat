@@ -1,6 +1,14 @@
 version: 2
 updates:
   - {package-ecosystem: pip, directory: /, schedule: {interval: weekly}}
-  - {package-ecosystem: npm, directory: /frontend, schedule: {interval: weekly}}
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: {interval: weekly}
+    groups:
+      react:  # react and react-dom must move together
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+    ignore:
+      - dependency-name: "@types/node"  # keep aligned with the Node version in the Dockerfile
+        update-types: ["version-update:semver-major"]
   - {package-ecosystem: github-actions, directory: /, schedule: {interval: weekly}}
   - {package-ecosystem: docker, directory: /, schedule: {interval: weekly}}
