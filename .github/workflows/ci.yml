@@ -143,7 +143,7 @@ jobs:
       - name: Bump image tags
         run: |
           f=environments/$ENVNAME/values.yaml
-          sed -i -E "s|\{tag: [^}]*\}|{tag: ${{ needs.build.outputs.tag }}}|" $f
+          sed -i -E "s|\{tag: [^}]*\}|{tag: \"${{ needs.build.outputs.tag }}\"}|" $f
           git diff --stat
       - name: Commit and push
         run: |
