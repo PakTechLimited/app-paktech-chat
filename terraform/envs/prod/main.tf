@@ -42,6 +42,8 @@ module "keyvault" {
   resource_group_name = azurerm_resource_group.main.name
   tenant_id           = data.azurerm_client_config.current.tenant_id
   admin_object_id     = var.admin_object_id
+  admin_ip_addresses  = [var.admin_ip]
+  aks_subnet_id       = module.network.aks_subnet_id
   tags                = local.tags
 }
 
@@ -69,7 +71,10 @@ module "aks" {
   apps_min_count      = var.apps_min_count
   apps_max_count      = var.apps_max_count
   monitoring_vm_size  = var.monitoring_vm_size
-  tags                = local.tags
+
+  api_authorized_ip_ranges = ["${var.admin_ip}/32", "${var.cluster_outbound_ip}/32"]
+
+  tags = local.tags
 }
 
 module "workload_identity" {

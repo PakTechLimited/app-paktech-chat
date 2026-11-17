@@ -29,3 +29,14 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "admin_ip_addresses" {
+  type        = list(string)
+  default     = []
+  description = "Public IPs of administrators who run Terraform or az keyvault commands from outside Azure."
+}
+
+variable "aks_subnet_id" {
+  type        = string
+  description = "AKS subnet allowed through the Key Vault firewall (the subnet must have the Microsoft.KeyVault service endpoint)."
+}
