@@ -57,3 +57,13 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "api_authorized_ip_ranges" {
+  type        = list(string)
+  description = "CIDR ranges allowed to call the Kubernetes API server: admin IP(s) and the cluster outbound IP."
+
+  validation {
+    condition     = length(var.api_authorized_ip_ranges) > 0 && alltrue([for c in var.api_authorized_ip_ranges : can(cidrhost(c, 0))])
+    error_message = "Provide at least one valid CIDR range, for example 203.0.113.10/32."
+  }
+}

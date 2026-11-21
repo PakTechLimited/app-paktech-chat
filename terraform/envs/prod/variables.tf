@@ -80,3 +80,23 @@ variable "app_service_accounts" {
   ]
   description = "Kubernetes service accounts that may assume the application identity."
 }
+
+variable "admin_ip" {
+  type        = string
+  description = "Your current public IP, without /32: curl -s https://api.ipify.org"
+
+  validation {
+    condition     = can(regex("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$", var.admin_ip))
+    error_message = "admin_ip must be a single IPv4 address such as 203.0.113.10 (no /32)."
+  }
+}
+
+variable "cluster_outbound_ip" {
+  type        = string
+  description = "Outbound public IP of the AKS load balancer: see terraform.tfvars.example for the commands."
+
+  validation {
+    condition     = can(regex("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$", var.cluster_outbound_ip))
+    error_message = "cluster_outbound_ip must be a single IPv4 address (no /32)."
+  }
+}

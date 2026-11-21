@@ -11,6 +11,16 @@ resource "azurerm_kubernetes_cluster" "this" {
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
 
+  # Kubernetes RBAC is on by default in AKS; stating it makes the intent visible to readers and scanners.
+  role_based_access_control_enabled = true
+
+  # Phase 5: only these CIDR ranges may call the API server (admin IP and the cluster outbound IP).
+  # The outbound IP must be listed: Argo CD, Gatekeeper and cert-manager reach the API server from the nodes.
+  # Recovery if you lock yourself out: az aks update ... --api-server-authorized-ip-ranges <list> (goes through ARM).
+  api_server_access_profile {
+    authorized_ip_ranges = var.api_authorized_ip_ranges
+  }
+
   default_node_pool {
     name                         = "system"
     vm_size                      = var.system_vm_size
