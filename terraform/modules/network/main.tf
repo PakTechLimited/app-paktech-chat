@@ -11,4 +11,7 @@ resource "azurerm_subnet" "aks" {
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.this.name
   address_prefixes     = [var.aks_subnet_prefix]
+
+  # Lets the Key Vault firewall recognise this subnet (Phase 5). Free, unlike a private endpoint.
+  service_endpoints = ["Microsoft.KeyVault"]
 }
