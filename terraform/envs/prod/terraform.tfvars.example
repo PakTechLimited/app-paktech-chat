@@ -1,3 +1,12 @@
 # Copy to terraform.tfvars (git-ignored) and fill in.
 # az ad signed-in-user show --query id -o tsv
 admin_object_id = "00000000-0000-0000-0000-000000000000"
+
+# Phase 5 network hardening. Both are single IPv4 addresses without /32.
+# Your public IP changes when your router reconnects: re-check it before every plan.
+#   curl -s https://api.ipify.org
+admin_ip = "203.0.113.10"
+# Outbound IP of the cluster load balancer (Argo CD and the other controllers call the API server from it):
+#   ID=$(az aks show -g rg-paktech-prod -n aks-paktech-prod --query "networkProfile.loadBalancerProfile.effectiveOutboundIPs[0].id" -o tsv)
+#   az network public-ip show --ids "$ID" --query ipAddress -o tsv
+cluster_outbound_ip = "20.0.0.1"

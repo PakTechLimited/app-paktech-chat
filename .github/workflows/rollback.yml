@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.env == 'prod' && 'prod' || 'nonprod' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: PakTechLimited/gitops-paktech-chat
           ref: main

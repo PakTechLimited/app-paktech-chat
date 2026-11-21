@@ -12,6 +12,16 @@ resource "azurerm_key_vault" "this" {
   purge_protection_enabled      = var.purge_protection_enabled
   public_network_access_enabled = true
   tags                          = var.tags
+
+  # Phase 5: deny by default. Allowed: the AKS subnet (through the service endpoint, so the Secrets Store CSI driver
+  # keeps working), trusted Azure services, and the administrator IPs. CI never reads Key Vault by design.
+  # ip_rules take single addresses, so a trailing /32 is stripped.
+  network_acls {
+    default_action             = "Deny"
+    bypass                     = "AzureServices"
+    ip_rules                   = [for ip in var.admin_ip_addresses : trimsuffix(ip, "/32")]
+    virtual_network_subnet_ids = [var.aks_subnet_id]
+  }
 }
 
 # Lets the person running Terraform create and read secrets.
