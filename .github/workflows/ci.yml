@@ -100,6 +100,8 @@ jobs:
       contents: read
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      digest_api: ${{ steps.digest.outputs.api }}
+      digest_web: ${{ steps.digest.outputs.web }}
     steps:
       - uses: actions/checkout@v7
       - id: tag
@@ -114,15 +116,31 @@ jobs:
           az acr build -r $ACR -t paktech-chat-api:${{ steps.tag.outputs.tag }} -f Dockerfile .
           az acr build -r $ACR -t paktech-chat-web:${{ steps.tag.outputs.tag }} \
             --build-arg NEXT_PUBLIC_API_URL= -f frontend/Dockerfile frontend
-      - name: Trivy scan (block CRITICAL)
+      - name: Resolve image digests
+        id: digest
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          api=$(az acr repository show -n "$ACR" --image "paktech-chat-api:${TAG}" --query digest -o tsv)
+          web=$(az acr repository show -n "$ACR" --image "paktech-chat-web:${TAG}" --query digest -o tsv)
+          for d in "$api" "$web"; do
+            [[ "$d" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "unexpected digest: '$d'"; exit 1; }
+          done
+          echo "api=$api" >> "$GITHUB_OUTPUT"
+          echo "web=$web" >> "$GITHUB_OUTPUT"
+      - name: Trivy scan (block CRITICAL, by digest)
+        env:
+          DIGEST_API: ${{ steps.digest.outputs.api }}
+          DIGEST_WEB: ${{ steps.digest.outputs.web }}
         run: |
           az acr login -n $ACR
           curl -fsSL -o trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
           echo "${TRIVY_SHA256}  trivy.tgz" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/bin"
           tar -xzf trivy.tgz -C "$RUNNER_TEMP/bin" trivy
-          for img in $IMAGE_API $IMAGE_WEB; do
-            "$RUNNER_TEMP/bin/trivy" image --severity CRITICAL --ignore-unfixed --exit-code 1 $img:${{ steps.tag.outputs.tag }}
+          # Scan the exact bytes that will be deployed: a digest cannot be moved, a tag can.
+          for ref in "$IMAGE_API@$DIGEST_API" "$IMAGE_WEB@$DIGEST_WEB"; do
+            "$RUNNER_TEMP/bin/trivy" image --severity CRITICAL --ignore-unfixed --exit-code 1 "$ref"
           done
 
   # ---------- 5. GitOps update ----------
@@ -140,10 +158,18 @@ jobs:
           repository: PakTechLimited/gitops-paktech-chat
           ref: main
           token: ${{ secrets.GITOPS_TOKEN }}
-      - name: Bump image tags
+      - name: Bump image tags and digests
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+          DIGEST_API: ${{ needs.build.outputs.digest_api }}
+          DIGEST_WEB: ${{ needs.build.outputs.digest_web }}
         run: |
           f=environments/$ENVNAME/values.yaml
-          sed -i -E "s|\{tag: [^}]*\}|{tag: \"${{ needs.build.outputs.tag }}\"}|" $f
+          sed -i -E "/^  api: \{tag:/ s|\{tag: [^}]*\}|{tag: \"$TAG\", digest: \"$DIGEST_API\"}|" $f
+          sed -i -E "/^  web: \{tag:/ s|\{tag: [^}]*\}|{tag: \"$TAG\", digest: \"$DIGEST_WEB\"}|" $f
+          # fail loudly if the lines did not change shape
+          grep -q "^  api: {tag: \"$TAG\", digest: \"$DIGEST_API\"}" $f
+          grep -q "^  web: {tag: \"$TAG\", digest: \"$DIGEST_WEB\"}" $f
           git diff --stat
       - name: Commit and push
         run: |
