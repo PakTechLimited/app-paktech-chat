@@ -6,7 +6,8 @@ RUN groupadd --gid 1001 appgroup && \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y setuptools wheel
 
 COPY alembic.ini .
 COPY alembic/ ./alembic/
