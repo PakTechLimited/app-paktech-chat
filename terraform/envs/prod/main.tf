@@ -94,6 +94,7 @@ module "dns" {
   resource_group_name = azurerm_resource_group.main.name
   ingress_ip          = azurerm_public_ip.ingress.ip_address
   tags                = local.tags
+  env_subdomains      = ["dev", "staging", "grafana"]
 }
 
 module "github_oidc" {
