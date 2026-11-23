@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
 )
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.core.metrics import MetricsMiddleware, metrics_response
 from app.db.seed import seed_default_rooms
 from app.db.session import engine
 from app.services.redis_service import close_redis
@@ -38,6 +39,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(MetricsMiddleware)
+
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(rooms.router, prefix="/api/v1")
@@ -46,6 +49,11 @@ app.include_router(posts.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(websocket.router)
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    return metrics_response()
 
 
 @app.on_event("startup")
