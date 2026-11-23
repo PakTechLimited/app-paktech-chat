@@ -12,8 +12,11 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 COPY alembic.ini .
 COPY alembic/ ./alembic/
 COPY app/ ./app/
+COPY gunicorn.conf.py .
 
 RUN mkdir -p /tmp && chown appuser:appgroup /tmp
+
+ENV PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
 
 USER appuser
 
@@ -22,6 +25,7 @@ EXPOSE 8000
 CMD ["gunicorn", "app.main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--workers", "2", \
+     "--config", "gunicorn.conf.py", \
      "--bind", "0.0.0.0:8000", \
      "--timeout", "120", \
      "--log-level", "info"]
