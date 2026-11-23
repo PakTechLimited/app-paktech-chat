@@ -32,5 +32,8 @@ email-validator==2.3.0
 # HTTP client (health checks, webhooks)
 httpx==0.28.1
 
+# Metrics
+prometheus-client==0.26.0
+
 # AI
 anthropic==2.8.0

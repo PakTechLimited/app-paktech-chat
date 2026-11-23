@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.api.v1.dependencies import user_from_access_token
 from app.core.config import settings
+from app.core.metrics import WS_ATTEMPTS, WS_CONNECTIONS, WS_MESSAGES
 from app.core.rate_limit import enforce
 from app.db import session as db_session
 from app.models.message import Message
@@ -83,12 +84,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int) -> None:
     """
     origin = websocket.headers.get("origin")
     if origin and origin not in settings.cors_origins:
+        WS_ATTEMPTS.labels("forbidden_origin").inc()
         await _close(websocket, CLOSE_FORBIDDEN_ORIGIN)
         return
 
     await websocket.accept()
     user = await _authenticate(websocket)
     if user is None:
+        WS_ATTEMPTS.labels("unauthorized").inc()
         await _close(websocket, CLOSE_UNAUTHORIZED)
         return
 
@@ -97,10 +100,12 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int) -> None:
             await db.execute(select(Room).where(Room.id == room_id))
         ).scalar_one_or_none()
     if room is None:
+        WS_ATTEMPTS.labels("no_such_room").inc()
         await _close(websocket, CLOSE_NO_SUCH_ROOM)
         return
 
     first_tab = await manager.connect(websocket, room_id, user.username)
+    WS_ATTEMPTS.labels("accepted").inc()
     await websocket.send_text(
         json.dumps({"type": WSEventType.READY, "username": user.username})
     )
@@ -115,6 +120,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int) -> None:
             },
         )
 
+    WS_CONNECTIONS.inc()
     try:
         while True:
             raw = await websocket.receive_text()
@@ -176,10 +182,12 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int) -> None:
                         "timestamp": _iso(msg.created_at),
                     },
                 )
+                WS_MESSAGES.inc()
 
     except WebSocketDisconnect:
         pass
     finally:
+        WS_CONNECTIONS.dec()
         username, last_tab = await manager.disconnect(room_id, websocket)
         if last_tab:
             await publish_message(
