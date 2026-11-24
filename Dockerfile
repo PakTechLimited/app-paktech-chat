@@ -1,3 +1,4 @@
+#checkov:skip=CKV_DOCKER_2: Kubernetes ignores HEALTHCHECK; the Helm chart defines readiness and liveness probes on /api/v1/health.
 FROM python:3.11-slim
 
 RUN groupadd --gid 1001 appgroup && \
