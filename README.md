@@ -10,7 +10,7 @@ This is the application, Terraform and CI repository of the **PakTech Chat** Dev
 > **Guided walkthrough:** each phase has its own page with the goal, commands, workflow, issues and
 > trade-offs: [alihaidry-devops.website/tech-series/paktech-chat](https://alihaidry-devops.website/tech-series/paktech-chat).
 > The summary post is [here](https://alihaidry-devops.website/blog/paktech-chat-devsecops-aks).
-> The lab cluster was decommissioned in November 2026 to stop its cost, so the live site is offline. It can be rebuilt from this repository's Terraform and the GitOps repository; the DNS zone, container registry and Key Vault were kept.
+> The lab cluster was decommissioned in November 2026 to stop its cost, so the live site is offline and every Azure resource was removed. It can be rebuilt from this repository's Terraform and the GitOps repository (see [Rebuild from zero](terraform/README.md#rebuild-from-zero)).
 
 ## What this project shows
 
