@@ -79,7 +79,18 @@ The cluster dominates: each `Standard_D2s_v3` node runs roughly $2 to $3 per day
 terraform destroy      # keeps rg-paktech-tfstate; the next apply recreates everything
 ```
 
-The Key Vault is soft-deleted on destroy; the provider is configured to recover it on the next apply.
+On destroy the azurerm provider purges the Key Vault (its default `purge_soft_delete_on_destroy`), so the name is free again immediately. `recover_soft_deleted_key_vaults` only matters if a vault was deleted outside Terraform.
+
+## Rebuild from zero
+
+The lab was fully torn down on 2026-11-24 (everything in `rg-paktech-prod`, the GitHub OIDC app registration, the Key Vault (purged by Terraform on destroy) and the `rg-paktech-tfstate` state storage). Nothing from it is billed. To bring it back:
+
+1. Run the steps in **Run it** above, including `bash terraform/bootstrap/bootstrap-state.sh` (it recreates the state storage) and `terraform apply`.
+2. Re-create the Key Vault secrets, which were not carried over: `dev-`, `staging-` and `prod-postgres-password` and `-secret-key`, `grafana-admin-password`, `acr-trivy-scan-password` (re-issue it for the new registry) and `alertmanager-slack-webhook` (create a new Slack incoming webhook).
+3. The `github-oidc` module creates a new app registration with a new client ID. Update the repository variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` from `terraform output`. The `GITOPS_TOKEN` secret is unaffected.
+4. The new DNS zone gets new name servers. Run `terraform output dns_name_servers` and set them at the registrar (see **Point the domain at Azure**).
+5. Connect with `$(terraform output -raw get_credentials_command)`, then bootstrap Argo CD from the `bootstrap/` folder of the [gitops repository](https://github.com/PakTechLimited/gitops-paktech-chat) so it syncs the `root` application.
+6. Container images are not kept: push to `develop` to rebuild and push them to the new registry through the pipeline.
 
 ## Design decisions (why)
 
