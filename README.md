@@ -1,12 +1,27 @@
 # app-paktech-chat
 
-Real-time WebSocket chat application — PakTech DevSecOps portfolio project.
+Real-time WebSocket chat application, taken from a laptop to a hardened Azure Kubernetes platform.
+This is the application, Terraform and CI repository of the **PakTech Chat** DevSecOps portfolio project.
 
-**Stack:** FastAPI · Redis Pub/Sub · PostgreSQL · Next.js frontend · Terraform on Azure (AKS)
-**Domain:** paktechlimited.chat
-**GitOps repo:** [gitops-paktech-chat](https://github.com/PakTechLimited/gitops-paktech-chat)
+**Stack:** FastAPI · WebSockets · Redis Pub/Sub · PostgreSQL · Next.js · Terraform · AKS · Argo CD · GitHub Actions · Trivy · OPA Gatekeeper · Falco · Prometheus · Grafana
+**Domain:** paktechlimited.chat (dev, staging and prod environments)
+**GitOps repo:** [gitops-paktech-chat](https://github.com/PakTechLimited/gitops-paktech-chat) (Helm chart, Argo CD apps, policies, monitoring)
 
----
+> **Guided walkthrough:** each phase has its own page with the goal, commands, workflow, issues and
+> trade-offs: [alihaidry-devops.website/tech-series/paktech-chat](https://alihaidry-devops.website/tech-series/paktech-chat).
+> The summary post is [here](https://alihaidry-devops.website/blog/paktech-chat-devsecops-aks).
+> The lab cluster is stopped between working sessions to control cost, so the live site is up only while it is in use.
+
+## What this project shows
+
+| Phase | What it delivered |
+|-------|-------------------|
+| 1 | The app, hardened: in-memory access token with a rotating httpOnly refresh cookie, CSRF and Origin checks, authenticated WebSockets, Alembic migrations, 122 tests (about 96% coverage), non-root containers |
+| 2 | Terraform: AKS with three node pools, ACR, Key Vault, Workload Identity, GitHub OIDC, Azure DNS, remote state |
+| 3 | GitOps with Argo CD (app of apps), Envoy Gateway (Gateway API), cert-manager, one Helm chart for three environments |
+| 4 | CI/CD: parallel quality and security gates, builds in ACR Tasks, Trivy scan by digest, digest committed to the GitOps repo, approval gate and manual sync for prod, rehearsed rollback |
+| 5 | Runtime security in five layers: API server IP allow-list, Gatekeeper admission (7 constraints, all `deny`), hardened pods pinned by digest, egress network policies, Falco and Trivy Operator |
+| 6 | Observability: kube-prometheus-stack, application metrics, dashboards in Git, alert rules routed to Slack |
 
 ## Architecture
 
@@ -25,6 +40,21 @@ Redis Pub/Sub  ──────►  All FastAPI pods (fan-out)
 FastAPI ──► PostgreSQL  (message persistence, user/room models)
 ```
 
+## Delivery path
+
+```
+git push -> GitHub Actions (this repo)
+   pull request:  backend (tests, Bandit, pip-audit) | semgrep | frontend (lint, build, npm audit) | iac (Terraform validate, Checkov, Trivy config)
+   push:          build (OIDC login, ACR Tasks build, Trivy scan of repo@digest)
+                  gitops (commits the new digest to gitops-paktech-chat)
+-> Argo CD syncs: dev and staging automatically, prod after approval and a manual sync
+```
+
+- **No stored cloud credentials.** GitHub authenticates to Azure with a short-lived OIDC token.
+- **Images are built in ACR Tasks**, never on the runner, and deployed by digest, so the bytes that were scanned are the bytes that run.
+- **Promotion is a pull request:** `develop` (dev) -> `staging` -> `main` (prod). `promote.yml` and `rollback.yml` are the manual workflows.
+- Workflows: `.github/workflows/ci.yml`, `promote.yml`, `rollback.yml`; Dependabot is configured in `.github/dependabot.yml`.
+
 ## Project structure
 
 ```
@@ -39,7 +69,7 @@ app/
 alembic/              Migration environment + versions/
 frontend/             Next.js client (chat, wall, AI) + Dockerfile
 tests/                API, auth, rooms, messages, admin, migrations
-terraform/            Azure infrastructure (Phase 2), see below
+terraform/            Azure infrastructure, see below
 Dockerfile
 docker-compose.yml    Local full-stack (app + postgres + redis)
 .pre-commit-config.yaml  Bandit · Semgrep · Black · isort
@@ -122,7 +152,7 @@ pre-commit run --all-files   # first-time scan
 {"type": "typing_stop", "room_id": 1, "username": "alice", ...}
 ```
 
-## Infrastructure (Terraform, Phase 2)
+## Infrastructure (Terraform)
 
 Applied to Azure (`rg-paktech-prod`, East US). State lives in a storage account
 (`paktechtfstateprod`) with Azure AD auth; created once by `terraform/bootstrap/bootstrap-state.sh`.
@@ -144,13 +174,12 @@ terraform/
 - **AKS** (`aks-paktech-prod`): Azure CNI Overlay with Cilium, OIDC issuer and
   Workload Identity, Key Vault CSI driver, AcrPull for the kubelet identity.
 - **Node pools:** `system` (1 node, `CriticalAddonsOnly` taint), `apps` (autoscaling 1-3,
-  `workload=apps`), `monitoring` (1 node, `workload=monitoring:NoSchedule`) for Phase 6.
+  `workload=apps`), `monitoring` (1 node, `workload=monitoring:NoSchedule`) for Prometheus, Grafana and the scanners.
 - **Workload Identity:** `id-paktech-chat-prod` is trusted by service account `paktech-chat`
   in the `paktech-chat-dev`, `-staging` and `-prod` namespaces, with read access to Key Vault secrets.
 - **GitHub OIDC:** `sp-github-paktech-cicd` trusts the repo's `develop`, `staging` and `main`
   branches, pull requests and the `prod` environment; it can push to ACR and get AKS credentials.
-- **Ingress and DNS:** static IP `pip-ingress-paktech-prod` (20.124.185.63); `paktechlimited.chat`
-  is delegated from Namecheap to Azure DNS.
+- **DNS:** `paktechlimited.chat` is delegated from the registrar to Azure DNS; records are managed by Terraform.
 
 ```bash
 cd terraform/envs/prod
@@ -167,13 +196,22 @@ az aks stop  -g rg-paktech-prod -n aks-paktech-prod
 az aks start -g rg-paktech-prod -n aks-paktech-prod
 ```
 
-## Phases
+## Security highlights
 
-| Phase | Status | Description |
-|-------|--------|-------------|
-| 1 | ✅ Complete | Local dev, pre-commit, Docker Compose, Next.js frontend, containerised web service |
-| 2 | ✅ Applied | Terraform: AKS (three node pools), ACR, Key Vault, Workload Identity, GitHub OIDC, DNS |
-| 3 | ⏳ Next | GitOps: Argo CD ApplicationSets (dev/staging/prod), ingress, TLS, Helm chart |
-| 4 | ⏳ | CI/CD: GitHub Actions + DevSecOps pipeline |
-| 5 | ⏳ | Runtime security: Falco, OPA Gatekeeper, Trivy Operator |
-| 6 | ⏳ | Observability: Prometheus, Grafana, AlertManager to Slack |
+- Application: tokens in memory only, rotating httpOnly refresh cookie, CSRF header plus Origin allow-list, WebSocket auth on the first frame, bcrypt password hashing, rate limiting.
+- Pipeline: Bandit, Semgrep, Checkov, Trivy (image scan by digest and config scan), pip-audit and npm audit, run on every pull request.
+- Cluster (policies live in the GitOps repo): Gatekeeper `deny` rules for privileged containers, privilege escalation, capabilities, read-only root filesystem, allowed registries, resource requests and image digests; egress network policies; no mounted Kubernetes API token; Falco runtime detection; Trivy Operator reports.
+
+## Metrics
+
+The API exposes `/metrics` (request count and latency by route template, active WebSocket connections,
+messages, WebSocket connection attempts by result). It runs in prometheus-client multiprocess mode because
+gunicorn starts several workers (`PROMETHEUS_MULTIPROC_DIR`, hooks in `gunicorn.conf.py`). The gateway only
+routes `/api` and `/ws`, so `/metrics` is never reachable from the internet. Scraping is enabled per
+environment by the chart flag `metrics.enabled` in the GitOps repo.
+
+## Related
+
+- Guided phase pages: <https://alihaidry-devops.website/tech-series/paktech-chat>
+- Summary blog post: <https://alihaidry-devops.website/blog/paktech-chat-devsecops-aks>
+- GitOps repository: <https://github.com/PakTechLimited/gitops-paktech-chat>
