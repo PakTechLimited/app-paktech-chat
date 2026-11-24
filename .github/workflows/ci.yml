@@ -92,7 +92,8 @@ jobs:
 
   # ---------- 4. Build, scan, push (not on PRs) ----------
   build:
-    if: github.event_name != 'pull_request'
+    # Skipped (with gitops) when the repository variable AZURE_CLIENT_ID is unset, e.g. while the lab is torn down.
+    if: github.event_name != 'pull_request' && vars.AZURE_CLIENT_ID != ''
     needs: [backend, semgrep, frontend, iac]
     runs-on: ubuntu-latest
     permissions:
